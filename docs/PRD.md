@@ -39,8 +39,10 @@ Dernière mise à jour: 2025-08-10
 - Offline: après téléchargement initial des modèles, fonctionnement hors ligne.
 - Succès V1: « fonctionnalités totales, complètes et à l’identique du repo cloné ».
 
-Indicateurs (à préciser):
-- Temps d’indexation (TBD), latence de réponse (TBD), stabilité (TBD), tdb logs étape‑par‑étape (TBD).
+Indicateurs (cibles initiales ajustables):
+- Indexation: PDF ~50 pages < 5–8 minutes (embeddings GPU-only).
+- Latence chat: question simple < 3–5 s; question complexe < 10–15 s.
+- Utilisation GPU visible (embeddings et LLM) et aucune exécution CPU pour l’inférence/embeddings.
 
 <a id="sec-3-personas"></a>
 ## 3. Personas & Cas d’usage
@@ -68,7 +70,7 @@ Indicateurs (à préciser):
 ## 5. Contraintes & Hypothèses
 - OS & Matériel: Windows, GPU NVIDIA RTX 3090. GPU‑only (CPU interdit pour inference/embeddings).
 - Modèles LLM/Embeddings:
-  - Emplacement local: `D:\\modeles_llm\\` (tous les modèles doivent être présents ou téléchargés dans ce dossier).
+  - Emplacement: Option A retenue (volume Docker nommé) pour Ollama: `ollama-models:/root/.ollama` (valeur par défaut). Alternative facultative: montage d’un chemin Windows si nécessaire.
   - Modèle par défaut chat: paramétrable; parité initiale avec `qwen3:8b-q4_K_M` recommandée.
   - Embeddings: `nomic-embed-text` via Ollama (parité d’origine).
 - Offline: tolérance au téléchargement initial des modèles, puis fonctionnement offline.
@@ -129,7 +131,7 @@ Indicateurs (à préciser):
 <a id="sec-11-deploiement"></a>
 ## 11. Déploiement & Installation
 - Mode Clone (sans n8n): suivre la doc d’installation existante, en remplaçant uniquement les URLs webhook vers l’API locale. 
-- Emplacement des modèles: `D:\\modeles_llm\\` (les modèles doivent être présents ou téléchargés à cet emplacement).
+- Emplacement des modèles (par défaut): volume Docker nommé `ollama-models:/root/.ollama` (Option A). Alternative: montage d’un chemin Windows si requis.
 - Script de démarrage: (TBD) script unique vs documentation manuelle — à confirmer.
 
 <a id="sec-12-tests"></a>
@@ -172,15 +174,14 @@ Indicateurs (à préciser):
 - Analyses complémentaires: `ANALYSE_SANS_N8N.md`, `DOCUMENTATION_PROJET.md`.
  
 <a id="sec-16-jalons"></a>
-## 16. Jalons & Planning (Milestones)
-- M0 — Cadrage PRD (fait):
-  - Livrables: PRD v0.1 (vision, scope, exigences), docs d’analyse.
-- M1 — Spécifications figées (S):
-  - Livrables: PRD v1.0 (sections perf/acceptation consolidées), choix script d’installation vs doc.
-- M2 — Clone infra sans n8n (S+1):
-  - Livrables: env `.env` mis à jour (URLs webhook → API locale placeholder), docker-compose sans n8n, Supabase migration et Edge Functions en place.
-- M3 — Design API Orchestrator (S+2):
-  - Livrables: spécification endpoints définitive, contrats I/O, schémas d’erreurs, journalisation.
+- M0 — Préparation (env, GPU, Supabase) [FAIT]:
+  - Livrables: environnement local prêt (Docker Desktop + WSL2 + NVIDIA Toolkit), Supabase local démarré (Postgres/Storage/Edge), volume nommé `ollama-models` créé.
+- M1 — Spécifications figées (GELÉ le 2025-08-10) [FAIT]:
+  - Livrables: PRD §20 gelé (contrats API V1 + idempotence), cibles perf initiales établies.
+- M2 — Infra clone sans n8n [FAIT]:
+  - Livrables: docker-compose sans n8n avec `ollama` (GPU + volume nommé) et `api` placeholder, healthcheck `ollama list` OK.
+- M3 — Scaffold API Orchestrator (S+2):
+  - Livrables: endpoints `/health`, `/ready`, boot checks (embedding dims=768, RPC, Storage), logs JSON.
 - M4 — Implémentation V1 (S+4 à S+6):
   - Livrables: ingestion/indexation, chat RAG + citations, tests et critères d’acceptation V1.
 - M5 — V1.1 Audio/Transcription/Exports (S+8):

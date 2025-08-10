@@ -16,7 +16,7 @@ Voici un plan de développement détaillé, aligné sur le PRD et vos contrainte
   - Installer/valider CUDA + pilotes RTX 3090.
   - Démarrer Supabase local (Postgres, Storage, Edge).
   - Importer `supabase-migration.sql`; copier `supabase-functions`.
-  - Préparer dossier des modèles Ollama et config GPU (CUDA); standardiser le montage de `D:\modeles_llm\` comme volume Docker.
+  - Préparer le stockage des modèles Ollama et la config GPU (CUDA); adopter l'Option A (volume Docker nommé `ollama-models:/root/.ollama`) comme défaut. Alternative: montage d’un chemin Windows (`D:\modeles_llm\`) si requis.
 - Critères d’acceptation:
   - GPU visible via `nvidia-smi` côté host et utilisable dans containers.
   - Tables/RPC Supabase OK; buckets présents.
@@ -44,14 +44,13 @@ Voici un plan de développement détaillé, aligné sur le PRD et vos contrainte
 - Livrables:
   - `docker-compose.yml` sans n8n; service `api` placeholder.
 - Tâches:
-  - Créer service `api` (port, réseau, dépendances: `ollama`, `kong`) avec accès GPU (NVIDIA runtime) et montage du volume modèles.
+  - Créer service `api` (réseau interne, dépendance sur `ollama`) et monter le volume modèles (Option A). Accès GPU configuré pour `ollama`.
   - Modèles (Option A retenue): utiliser un volume Docker nommé pour Ollama (ex.: `ollama-models:/root/.ollama`).
-  - Mettre à jour `.env` pour rediriger `*_WEBHOOK_URL` vers `api`.
-  - Restreindre l’exposition réseau de l’API au réseau interne Docker (non publiée sur l’hôte).
+  - Mettre à jour `.env` pour rediriger `*_WEBHOOK_URL` vers `api` (placeholder), sans exposition de port vers l’hôte.
 - Critères d’acceptation:
-  - Edge Functions pointent vers `api` (bien que non implémenté).
   - L’infra démarre sans n8n.
-  - Le service `api` démarre et expose `/health` (placeholder) sans erreur.
+  - `ollama` sain (healthcheck via `ollama list` OK) et GPU visible.
+  - `api` placeholder présent dans compose (réseau interne), sans exigence de `/health` pour M2 (couvrira M3).
 
 **Phase 3 — Scaffold API Orchestrator (Semaine S+2)**
 - Rôles: TL, BE.
@@ -167,7 +166,7 @@ N.
 
 **Standards & Conventions**
 - GPU-only: vérifier systématiquement l’utilisation GPU sur embeddings/LLM.
-- Modèles: présents dans `D:\modeles_llm\` (ou volume mappé équivalent).
+- Modèles: Option A (volume Docker nommé `ollama-models:/root/.ollama`) par défaut; alternative: montage `D:\modeles_llm\` si nécessaire.
 - Erreurs: ne jamais planter le service; remonter des erreurs contextualisées.
 - Logs: corrélation par requête; logs JSON structurés (INFO/ERROR, DEBUG optionnel) avec `correlation_id` et temps par étape.
 - Sécurité: header auth minimal; réseau local Docker uniquement.

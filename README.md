@@ -8,6 +8,7 @@
   - PRD (Product Requirements Document): `docs/PRD.md`
   - Tests V1 — Checklist exécutable: `docs/CHECKLIST_TESTS_V1.md`
   - Modèle de rapport de tests V1: `docs/TEST_REPORT_V1.md`
+  - Guide Task Master CLI: `docs/TASK_MASTER_CLI.md`
 
 Prochaines étapes (selon PRD):
 - Figurer les cibles perf/acceptation, puis implémenter l’API locale remplaçant n8n.

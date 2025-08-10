@@ -14,6 +14,7 @@ Références canon:
 - Infra & installation: `docs/INSTALLATION_CLONE.md`, `docker-compose.yml`, `docs/docker-compose.example.yml`.
 - Suivi tâches: `.taskmaster/tasks.json` (config: `.taskmaster/config.json`).
 - CI de base: `.github/workflows/ci.yml` (markdownlint, yamllint, lychee).
+ - Guide CLI des tâches: `docs/TASK_MASTER_CLI.md`.
 
 ## 2) Architecture rapide
 - Ollama (LLM + embeddings) avec GPU et volume nommé: `ollama-models:/root/.ollama` (Option A retenue).
@@ -88,3 +89,4 @@ Points d’attention Windows:
 - Compose: `docker-compose.yml`
 - Tâches: `.taskmaster/tasks.json`
 - CI: `.github/workflows/ci.yml`
+ - Guide Tasks CLI: `docs/TASK_MASTER_CLI.md`

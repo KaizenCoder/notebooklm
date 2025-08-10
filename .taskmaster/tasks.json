@@ -1,0 +1,220 @@
+{
+  "master": {
+    "tasks": [
+      {
+        "id": 1,
+        "title": "Phase 0 — Préparation (env, GPU, Supabase)",
+        "description": "Docker Desktop, WSL2 + NVIDIA toolkit, CUDA/pilotes, Supabase local, migrations & functions, volume modèles.",
+        "status": "done",
+        "priority": "high",
+        "dependencies": [],
+        "details": "Valider nvidia-smi host + container; importer supabase-migration.sql; copier supabase-functions; préparer volume ollama-models.",
+        "testStrategy": "Exécuter nvidia-smi dans un container; vérifier tables/RPC; vérifier volume persistant.",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Installer WSL2 + NVIDIA toolkit",
+            "status": "done",
+            "dependencies": []
+          },
+          {
+            "id": 2,
+            "title": "Démarrer Supabase local + migrations",
+            "status": "done",
+            "dependencies": []
+          },
+          {
+            "id": 3,
+            "title": "Créer volume Docker nommé ollama-models",
+            "status": "done",
+            "dependencies": []
+          }
+        ]
+      },
+      {
+        "id": 2,
+        "title": "Phase 1 — Spécifications figées (M1 GELÉ)",
+        "description": "Contrats d’API (OpenAPI + exemples + erreurs), idempotence, compat I/O Edge.",
+        "status": "done",
+        "priority": "high",
+        "dependencies": [
+          1
+        ],
+        "details": "PRD.md §20 gelé; réponses chat {success,data.output[]}, erreurs standardisées; Idempotency-Key.",
+        "testStrategy": "Valider schémas contre exemples; revue PO; mini tests de contrat (fixtures JSON).",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Publier PRD §20 (API + Idempotence)",
+            "status": "done",
+            "dependencies": []
+          },
+          {
+            "id": 2,
+            "title": "Exemples request/response validés",
+            "status": "done",
+            "dependencies": [
+              1
+            ]
+          }
+        ]
+      },
+      {
+        "id": 3,
+        "title": "Phase 2 — Infra clone sans n8n",
+        "description": "docker-compose sans n8n; services ollama + api (placeholder), volume nommé pour modèles.",
+        "status": "done",
+        "priority": "high",
+        "dependencies": [
+          2
+        ],
+        "details": "Option A retenue; API non exposée à l’hôte; healthcheck ollama.",
+        "testStrategy": "Démarrer infra; vérifier /health api placeholder; volume persistant; GPU visible.",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Fusionner docs/docker-compose.example.yml",
+            "status": "done",
+            "dependencies": []
+          },
+          {
+            "id": 2,
+            "title": "Vérifier healthcheck ollama",
+            "status": "done",
+            "dependencies": [
+              1
+            ]
+          }
+        ]
+      },
+      {
+        "id": 4,
+        "title": "Phase 3 — Scaffold API Orchestrator",
+        "description": "Projet FastAPI; endpoints /health, /ready; adapters Supabase/Ollama/Storage; logs JSON.",
+        "status": "pending",
+        "priority": "high",
+        "dependencies": [
+          3
+        ],
+        "details": "Sanity checks: embedding dims=768, RPC match_documents, accès Storage; timeouts/retries.",
+        "testStrategy": "Tests unitaires /health et /ready; fail-fast si ENV manquant.",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Init projet + config ENV",
+            "status": "pending",
+            "dependencies": []
+          },
+          {
+            "id": 2,
+            "title": "Implémenter /health & /ready",
+            "status": "pending",
+            "dependencies": [
+              1
+            ]
+          }
+        ]
+      },
+      {
+        "id": 5,
+        "title": "Phase 4 — Ingestion/Indexation",
+        "description": "POST /webhook/process-document; extraction; chunking; embeddings; upsert documents; idempotence.",
+        "status": "pending",
+        "priority": "high",
+        "dependencies": [
+          4
+        ],
+        "details": "Verrous processing; hash chunk; metadata.loc.lines; callback; logs par étape.",
+        "testStrategy": "Indexer PDF court/long + texte; vérifier métadonnées; GPU-only; pas de doublons.",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Extraction PDF + texte",
+            "status": "pending",
+            "dependencies": []
+          },
+          {
+            "id": 2,
+            "title": "Embeddings GPU + upsert",
+            "status": "pending",
+            "dependencies": [
+              1
+            ]
+          }
+        ]
+      },
+      {
+        "id": 6,
+        "title": "Phase 5 — Chat RAG + Citations",
+        "description": "POST /webhook/chat; retrieve; RAG strict; citations mappées aux chunk_id; persistance historique.",
+        "status": "pending",
+        "priority": "high",
+        "dependencies": [
+          5
+        ],
+        "details": "Trier topK par score; logger mapping [n]→chunk_id/source_id/loc.lines; ",
+        "testStrategy": "Q/A PDF court; citations vérifiées; ‘je ne sais pas’ hors contexte.",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Retrieval + prompt RAG",
+            "status": "pending",
+            "dependencies": []
+          },
+          {
+            "id": 2,
+            "title": "Post-traitement citations",
+            "status": "pending",
+            "dependencies": [
+              1
+            ]
+          }
+        ]
+      },
+      {
+        "id": 7,
+        "title": "Phase 6 — Obs/Séc/Offline",
+        "description": "Logs JSON corrélés; auth header; API non exposée; tests offline.",
+        "status": "pending",
+        "priority": "medium",
+        "dependencies": [
+          6
+        ],
+        "details": "Metrics latence par étape; option HMAC anti-replay; scenarios offline.",
+        "testStrategy": "Checklist sections env/séc/offline.",
+        "subtasks": []
+      },
+      {
+        "id": 8,
+        "title": "Phase 7 — Validation & Perfs",
+        "description": "Mesures indexation/latences/GPU; rapport V1.",
+        "status": "pending",
+        "priority": "medium",
+        "dependencies": [
+          7
+        ],
+        "details": "Cibles initiales: 50p < 5–8min; Q simple < 3–5s; Q complexe < 10–15s.",
+        "testStrategy": "Remplir TEST_REPORT_V1.md; consigner métriques.",
+        "subtasks": []
+      },
+      {
+        "id": 9,
+        "title": "Phase 8 — Emballage & Docs",
+        "description": "Docs finales; README; script préflight (option).",
+        "status": "pending",
+        "priority": "low",
+        "dependencies": [
+          8
+        ],
+        "details": "`.env.example` commenté; liens doc; guide exécution.",
+        "testStrategy": "Lecture de zéro à V1 via doc uniquement.",
+        "subtasks": []
+      }
+    ],
+    "metadata": {
+      "created": "2025-08-10T21:15:48.883Z",
+      "updated": "2025-08-10T21:16:02.882Z",
+      "description": "Tasks for master context"
+    }
+  }
+}

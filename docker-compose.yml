@@ -1,0 +1,39 @@
+version: "3.9"
+
+# Stack minimal Phase 2 (infra sans n8n)
+# - Option A: volume Docker nommé pour les modèles Ollama
+# - Services non exposés à l'hôte; réseau par défaut inter-containers
+# - Requiert Docker Desktop + WSL2 + NVIDIA Container Toolkit (gpus: all)
+
+services:
+  ollama:
+    image: ollama/ollama:latest
+    restart: unless-stopped
+    volumes:
+      - ollama-models:/root/.ollama
+    environment:
+      - OLLAMA_MODELS=/root/.ollama
+    gpus: all
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+
+  api:
+    image: ghcr.io/example/api-orchestrator:placeholder
+    restart: unless-stopped
+    depends_on:
+      - ollama
+    environment:
+      - NOTEBOOK_GENERATION_AUTH=${NOTEBOOK_GENERERATION_AUTH}
+      - OLLAMA_BASE_URL=http://ollama:11434
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
+      - DOCUMENT_PROCESSING_WEBHOOK_URL=${DOCUMENT_PROCESSING_WEBHOOK_URL}
+      - ADDITIONAL_SOURCES_WEBHOOK_URL=${ADDITIONAL_SOURCES_WEBHOOK_URL}
+      - NOTEBOOK_CHAT_URL=${NOTEBOOK_CHAT_URL}
+
+volumes:
+  ollama-models:
+    driver: local

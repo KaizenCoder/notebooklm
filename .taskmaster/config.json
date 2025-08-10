@@ -1,0 +1,7 @@
+{
+  "projectRoot": ".",
+  "defaultTasksFile": ".taskmaster/tasks.json",
+  "ui": {
+    "showAsciiHeader": true
+  }
+}

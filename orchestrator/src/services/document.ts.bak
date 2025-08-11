@@ -1,0 +1,82 @@
+import { Env } from '../env.js';
+import { createOllama } from './ollama.js';
+import { createDb } from './db.js';
+
+export type UpsertDoc = { text: string; embedding: number[]; metadata?: Record<string, unknown> };
+
+export function createDocumentProcessor(env: Env, deps?: {
+  ollama?: ReturnType<typeof createOllama>;
+  db?: ReturnType<typeof createDb>;
+}) {
+  const ollama = deps?.ollama as any;
+  const db = deps?.db as any;
+
+  function chunk(text: string): Array<{ text: string; from: number; to: number }> {
+    if (!text) return [];
+    // naive chunker by lines with max ~500 chars
+    const rawLines = text.split(/\r?\n/);
+    const linesWithIdx = rawLines.map((l, i) => ({ t: l.trim(), idx: i + 1 })).filter(x => x.t);
+  const chunks: Array<{ text: string; from: number; to: number }> = [];
+    let cur = '';
+    let from = 0;
+    let to = 0;
+    for (const { t, idx } of linesWithIdx) {
+      const next = (cur ? cur + ' ' : '') + t;
+      if (next.length > 500) {
+        if (cur) chunks.push({ text: cur, from, to });
+        cur = t;
+        from = idx;
+        to = idx;
+      } else {
+        if (!cur) from = idx;
+        cur = next;
+        to = idx;
+      }
+    }
+    if (cur) chunks.push({ text: cur, from, to });
+    return chunks;
+  }
+
+  return {
+    async processDocument(payload: { notebookId?: string; sourceId?: string; text?: string }) {
+      const text = payload.text ?? '';
+      const chunks = chunk(text);
+      const docs: UpsertDoc[] = [];
+
+      // Optionnel: statut de source (si db expose l'API)
+      if (db?.updateSourceStatus && payload.sourceId) {
+        try { await db.updateSourceStatus(payload.sourceId, 'indexing'); } catch {}
+      }
+
+      for (const c of chunks) {
+        let embedding: number[] = [];
+        if (env.OLLAMA_EMBED_MODEL && typeof ollama?.embeddings === 'function') {
+          try {
+            embedding = await ollama.embeddings(env.OLLAMA_EMBED_MODEL, c.text);
+          } catch {
+            embedding = [];
+          }
+        }
+        docs.push({
+          text: c.text,
+          embedding,
+          metadata: {
+            notebook_id: payload.notebookId,
+            source_id: payload.sourceId,
+            loc: { lines: { from: c.from, to: c.to } }
+          }
+        });
+      }
+
+      if (db?.upsertDocuments) {
+        await db.upsertDocuments(docs);
+      }
+
+      if (db?.updateSourceStatus && payload.sourceId) {
+        try { await db.updateSourceStatus(payload.sourceId, 'ready'); } catch {}
+      }
+    }
+  };
+}
+
+export type DocumentProcessor = ReturnType<typeof createDocumentProcessor>;

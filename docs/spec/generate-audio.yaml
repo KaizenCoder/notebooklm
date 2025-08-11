@@ -1,0 +1,64 @@
+paths:
+  /webhook/generate-audio:
+    post:
+      summary: Lancer la génération asynchrone d'un aperçu audio
+      security:
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                notebook_id:
+                  type: string
+                  format: uuid
+                callback_url:
+                  type: string
+                  format: uri
+                  description: URL de l'Edge Function à appeler une fois la génération terminée.
+              required:
+                - notebook_id
+                - callback_url
+            example:
+              notebook_id: "e7b1b2c8-8a7f-4c7a-9a1e-1234567890ab"
+              callback_url: "http://localhost:8000/functions/v1/audio-generation-callback"
+
+      responses:
+        '202':
+          description: Traitement accepté et démarré en arrière-plan.
+          content:
+            application/json:
+              schema:
+                $ref: './openapi.yaml#/components/schemas/SuccessResponse'
+              examples:
+                accepted:
+                  summary: Génération audio démarrée
+                  value:
+                    success: true
+                    message: "Audio generation started"
+        '400':
+          description: Requête invalide.
+          content:
+            application/json:
+              schema:
+                $ref: './openapi.yaml#/components/schemas/ErrorResponse'
+        '401':
+          description: Non autorisé.
+          content:
+            application/json:
+              schema:
+                $ref: './openapi.yaml#/components/schemas/ErrorResponse'
+        '422':
+          description: Requête non traitable (champ manquant/invalide).
+          content:
+            application/json:
+              schema:
+                $ref: './openapi.yaml#/components/schemas/ErrorResponse'
+        '500':
+          description: Erreur interne serveur.
+          content:
+            application/json:
+              schema:
+                $ref: './openapi.yaml#/components/schemas/ErrorResponse'

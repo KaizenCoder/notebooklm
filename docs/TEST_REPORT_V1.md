@@ -6,25 +6,29 @@ Références croisées: voir `PRD.md` (exigences et critères) et `CHECKLIST_TES
 Date du run: __/__/____  Heure: __:__  Auteur: __________
 
 ## 1) Métadonnées & Environnement
-- OS: Windows [10/11]  Build: __________
-- GPU: NVIDIA RTX 3090 (pilotes/CUDA): __________
+- OS / Build: __________
+- Matériel (CPU/GPU): __________
 - Docker Desktop: version __________
-- Supabase local: [OK/KO]  URL: __________
+- PostgreSQL locale (pgvector): [OK/KO]  Connexion DSN: __________
+- Supabase local (optionnel): [OK/KO]  URL: __________ (doit pointer sur la PostgreSQL locale)
 - Emplacement modèles LLM/Embeddings: `D:\\modeles_llm\\` (ou volume mappé): [OK/KO]
 - API Orchestrator (remplacement n8n): URL base __________  Auth header: [OK/KO]
 - Variables d’env (`*_WEBHOOK_URL`, `NOTEBOOK_GENERATION_AUTH`): [OK/KO]
+- Gouvernance: Tag Task‑Master: __________  Tâches couvertes (SPEC/IMPL/TEST/AUDIT): __________
 
 ## 2) Jeux de test utilisés
 - PDF court (`test_short.pdf`): chemin __________  Pages: ~__  Langue: FR
 - PDF long (`test_long.pdf`): chemin __________  Pages: ~__  Langue: FR
 - Texte brut (`test_text.txt`): chemin __________
 - Pages web (snapshots): `page1.html/.md`, `page2.html/.md` — chemins __________
+- Audio ASR (`sample_audio_fr.*`): chemin __________  Durée: ~__  Langue: FR
+- Texte TTS (fichier/contenu): chemin/référence __________
 - Questions (liste 5–10): fichier/référence __________
 
 ## 3) Vérifications d’environnement
 - GPU utilisé (nvidia-smi) pendant embeddings/chat: [OK/KO]  Preuve (capture/lien): __________
 - Chargement modèles depuis `D:\\modeles_llm\\`: [OK/KO]
-- Supabase accessible, RPC `match_documents` exécutable: [OK/KO]
+- PostgreSQL locale accessible, RPC/SQL `match_documents` exécutable: [OK/KO]
 
 ## 4) Ingestion & Indexation — PDF court
 - Ajout source: [OK/KO]
@@ -65,12 +69,27 @@ Date du run: __/__/____  Heure: __:__  Auteur: __________
   - Historique `n8n_chat_histories` (2 entrées JSON): [OK/KO]
   - Observations/Logs: __________
 
-## 9) Performance (informative, cibles TBD)
+## 9) Transcription Audio — Whisper ASR (local)
+- Source audio importée: [OK/KO]
+- `sources.processing_status=completed`: [OK/KO]
+- Fichier présent dans bucket `sources`: [OK/KO]
+- Transcription disponible et indexée (chunks + `documents` 768): [OK/KO]
+- Utilisable en chat (citations sur segments audio): [OK/KO]
+- Observations/Logs: __________
+
+## 10) Génération Audio — Coqui TTS (local)
+- Déclenchement génération audio depuis notebook: [OK/KO]
+- `audio_overview_generation_status=completed`: [OK/KO]
+- Fichier présent dans bucket `audio`: [OK/KO]
+- `audio_overview_url` et `audio_url_expires_at` valides: [OK/KO]
+- Observations/Logs: __________
+
+## 11) Performance (informative, cibles TBD)
 - Indexation `test_long.pdf` (min:s): ______  GPU charge observée: ______
 - Latence chat Q simple (s): ______  Q complexe (s): ______
 - Observations/metrics: __________
 
-## 10) Sécurité & Offline
+## 12) Sécurité & Offline
 - Auth webhook (header manquant → refus): [OK/KO]
 - API non exposée publiquement (réseau local): [OK/KO]
 - Offline (réseau coupé après installation modèles):
@@ -78,13 +97,18 @@ Date du run: __/__/____  Heure: __:__  Auteur: __________
   - Recherche + Chat: [OK/KO]
   - Observations: __________
 
-## 11) Journaux & Observabilité
+## 13) Journaux & Observabilité
 - Traces par étape (ingestion, embeddings, upsert, retrieval, génération): [OK/KO]
 - Erreurs explicites sans crash global: [OK/KO]
 - Extraits utiles (liens/captures): __________
 
-## 12) Synthèse & Décision d’acceptation V1
-- Parité fonctionnelle (hors audio/transcription/exports V1.1): [OK/KO]
+## 14) Parité & Décisions
+- Revue de parité (date/heure): __________  Référence originale (chemins `docs/clone/...`): __________
+- Écarts constatés: __________
+- Décisions (lien `docs/DECISIONS.md` + IDs Task‑Master): __________
+
+-## 14) Synthèse & Décision d’acceptation V1
+- Parité fonctionnelle (selon original, audio/transcription incluses): [OK/KO]
 - Citations vérifiables (mapping sources/lignes correct): [OK/KO]
 - GPU utilisé exclusivement en inférence/embeddings: [OK/KO]
 - Offline après installation initiale: [OK/KO]

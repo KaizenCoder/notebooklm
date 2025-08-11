@@ -31,7 +31,22 @@ export function buildApp(deps?: Partial<AppDeps>): FastifyInstance {
   const docProc = (deps as any)?.docProc ?? createDocumentProcessor(env, { ollama, db });
   const audio = (deps as any)?.audio ?? createAudio(env);
   const storage = (deps as any)?.storage ?? createStorage(env);
-  const idem = createIdempotencyStore();
+  const idem = createIdempotencyStore(Number((env as any).IDEMPOTENCY_TTL_MS) || undefined);
+  let gpuProbeCache: { ts: number; ok: boolean } = { ts: 0, ok: false };
+
+  async function ensureGpuAvailable(): Promise<boolean> {
+    if (env.GPU_ONLY !== '1' || !env.OLLAMA_EMBED_MODEL) return true;
+    const now = Date.now();
+    if (now - gpuProbeCache.ts < 15000) return gpuProbeCache.ok;
+    try {
+      const ok = await ollama.checkGpu(env.OLLAMA_EMBED_MODEL);
+      gpuProbeCache = { ts: now, ok };
+      return ok;
+    } catch {
+      gpuProbeCache = { ts: now, ok: false };
+      return false;
+    }
+  }
 
   app.decorate('env', env);
   app.decorate('db', db);
@@ -48,10 +63,14 @@ export function buildApp(deps?: Partial<AppDeps>): FastifyInstance {
       if (!url || !url.startsWith('/webhook')) return;
       const header = req.headers['authorization'];
       if (!header || header !== env.NOTEBOOK_GENERATION_AUTH) {
-        return reply.code(401).send({ code: 'UNAUTHORIZED', message: 'Invalid Authorization' });
+        return reply.code(401).send({ code: 'UNAUTHORIZED', message: 'Invalid Authorization', correlation_id: req.id });
       }
     });
   }));
+
+  app.addHook('onRequest', async (req) => {
+    (req as any).correlationId = (req as any).id;
+  });
 
   app.get('/health', async () => ({ status: 'ok' }));
 
@@ -59,20 +78,16 @@ export function buildApp(deps?: Partial<AppDeps>): FastifyInstance {
     const details: Record<string, unknown> = {};
     try { await db.ping(); details.db = 'ok'; } catch (e) { details.db = { error: String(e) }; }
     try {
-      const tags = await ollama.listModels();
-      details.ollama = 'ok';
+      const tags = await ollama.listModels(); details.ollama = 'ok';
       const need = [env.OLLAMA_EMBED_MODEL, env.OLLAMA_LLM_MODEL].filter(Boolean) as string[];
       const names = (tags as any).models?.map((m: any) => m.name) ?? [];
-      const missing = need.filter((m) => !names.includes(m));
-      details.models = missing.length ? { missing } : 'ok';
-      if (env.GPU_ONLY === '1' && env.OLLAMA_EMBED_MODEL) {
-        try { const ok = await ollama.checkGpu(env.OLLAMA_EMBED_MODEL); details.gpu = ok ? 'ok' : { error: 'embedding probe failed or timed out' }; } catch (e) { details.gpu = { error: String(e) }; }
-      }
+      const missing = need.filter((m) => !names.includes(m)); details.models = missing.length ? { missing } : 'ok';
+      if (env.GPU_ONLY === '1' && env.OLLAMA_EMBED_MODEL) { try { const ok = await ollama.checkGpu(env.OLLAMA_EMBED_MODEL); details.gpu = ok ? 'ok' : { error: 'embedding probe failed or timed out' }; } catch (e) { details.gpu = { error: String(e) }; } }
     } catch (e) { details.ollama = { error: String(e) }; }
     const gpuOk = env.GPU_ONLY === '1' ? details.gpu === 'ok' : true;
     const modelsOk = details.models === 'ok';
     const ok = details.db === 'ok' && details.ollama === 'ok' && modelsOk && gpuOk;
-    if (!ok) return reply.code(503).send({ ready: false, details });
+    if (!ok) return reply.code(503).send({ code: 'NOT_READY', message: 'Dependencies not ready', details, correlation_id: req.id });
     return { ready: true, details };
   });
 
@@ -83,83 +98,47 @@ export function buildApp(deps?: Partial<AppDeps>): FastifyInstance {
     reply.code(status).send({ code, message, details: undefined, correlation_id: req.id });
   });
 
-  app.post('/webhook/chat', async (req: FastifyRequest) => {
+  function requireFields(body: any, fields: string[]) { for (const f of fields) { if (!body[f]) throw Object.assign(new Error(`Missing ${f}`), { statusCode: 422 }); } }
+
+  app.post('/webhook/chat', async (req: FastifyRequest, reply: FastifyReply) => {
+    if (!(await ensureGpuAvailable())) {
+      return reply.code(503).send({ code: 'GPU_REQUIRED', message: 'GPU enforcement active; device not available', correlation_id: (req as any).id });
+    }
     const body: any = (req as any).body ?? {};
     let messages: Array<{ role: string; content: string }> = [];
     let notebookId: string | undefined;
-    const userId: string | undefined = typeof body.user_id === 'string' ? body.user_id : undefined;
-    const timestampIso: string | undefined = typeof body.timestamp === 'string' ? body.timestamp : undefined;
-    if (typeof body.session_id === 'string' && typeof body.message === 'string' && body.message.length) {
-      messages = [{ role: 'user', content: body.message }];
-      notebookId = body.session_id;
-    } else {
-      messages = Array.isArray(body.messages) ? body.messages : [{ role: 'user', content: body.message }].filter(Boolean);
-      notebookId = body.notebookId ?? body.session_id;
-    }
+    if (typeof body.session_id === 'string' && typeof body.message === 'string' && body.message.length) { messages = [{ role: 'user', content: body.message }]; notebookId = body.session_id; }
+    else { messages = Array.isArray(body.messages) ? body.messages : [{ role: 'user', content: body.message }].filter(Boolean); notebookId = body.notebookId ?? body.session_id; }
     if (env.OLLAMA_LLM_MODEL && messages.length) {
-      let citations: any[] = [];
-      try {
-        const query = messages[messages.length - 1]?.content as string | undefined;
-        if (query) citations = (await supabase.matchDocuments(query, notebookId)).slice(0, 5);
-      } catch {}
-      const chatRes = await ollama.chat(env.OLLAMA_LLM_MODEL, messages);
-      const text = chatRes?.message?.content ?? '';
-      try {
-        const lastUser = messages[messages.length - 1];
-        if (lastUser?.role && lastUser?.content) {
-          if ((db as any).insertChatHistory) {
-            await (db as any).insertChatHistory(notebookId ?? null, 'user', lastUser.content, userId ?? null, timestampIso ?? undefined);
-          } else {
-            await db.insertMessage(notebookId ?? null, lastUser.role, lastUser.content);
-          }
-        }
-        if (text) {
-          if ((db as any).insertChatHistory) {
-            await (db as any).insertChatHistory(notebookId ?? null, 'assistant', text, null, undefined);
-          } else {
-            await db.insertMessage(notebookId ?? null, 'assistant', text);
-          }
-        }
-      } catch {}
-      return { success: true, data: { output: [{ text, citations }] } };
+      let citations: any[] = []; try { const query = messages[messages.length - 1]?.content as string | undefined; if (query) citations = (await supabase.matchDocuments(query, notebookId)).slice(0, 5); } catch {}
+      const chatRes = await ollama.chat(env.OLLAMA_LLM_MODEL, messages); const text = chatRes?.message?.content ?? '';
+      try { const lastUser = messages[messages.length - 1]; if (lastUser?.role && lastUser?.content) await db.insertMessage(notebookId ?? null, lastUser.role, lastUser.content); if (text) await db.insertMessage(notebookId ?? null, 'assistant', text); } catch {}
+      return reply.code(200).send({ success: true, data: { output: [{ text, citations }] } });
     }
-    return { success: true, data: { output: [] } };
+    return reply.code(200).send({ success: true, data: { output: [] } });
   });
 
   app.post('/webhook/process-document', async (req: FastifyRequest, reply: FastifyReply) => {
-    const body: any = (req as any).body ?? {};
-    const normalized = {
-      sourceId: body.sourceId ?? body.source_id,
-      fileUrl: body.fileUrl ?? body.file_url,
-      filePath: body.filePath ?? body.file_path,
-      sourceType: body.sourceType ?? body.source_type,
-      callbackUrl: body.callbackUrl ?? body.callback_url,
-      notebookId: body.notebookId ?? body.notebook_id,
-      text: body.text
-    } as any;
+    if (!(await ensureGpuAvailable())) {
+      return reply.code(503).send({ code: 'GPU_REQUIRED', message: 'GPU enforcement active; device not available', correlation_id: (req as any).id });
+    }
+    const b: any = (req as any).body ?? {};
+    const body = { ...b, source_id: b.source_id ?? b.sourceId, file_url: b.file_url ?? b.fileUrl, file_path: b.file_path ?? b.filePath, source_type: b.source_type ?? b.sourceType, callback_url: b.callback_url ?? b.callbackUrl, notebook_id: b.notebook_id ?? b.notebookId, path: b.path };
 
-    // Détection stricte uniquement si payload en snake_case (OpenAPI)
-    const hasSnakeOpenApi = [body.source_id, body.file_url, body.file_path, body.source_type, body.callback_url]
-      .some((v: unknown) => typeof v === 'string' && (v as string).length > 0);
-    if (hasSnakeOpenApi) {
-      if (!normalized.sourceId || !normalized.fileUrl || !normalized.filePath || !normalized.sourceType || !normalized.callbackUrl) {
-        return reply.code(422).send({ code: 'UNPROCESSABLE_ENTITY', message: 'Missing required fields for OpenAPI payload', correlation_id: (req as any).id });
-      }
+    const legacy = typeof b.path === 'string' || typeof b.text === 'string';
+    const openApiSignal = ['file_url','file_path','source_type','callback_url','source_id','notebook_id'].some((k) => typeof b[k] !== 'undefined');
+    if (!legacy && openApiSignal && body.source_type !== 'txt') {
+      requireFields(body, ['source_id','file_url','file_path','source_type','callback_url']);
     }
 
     const idemKey = (req.headers['idempotency-key'] as string|undefined)?.trim();
     if (idemKey) { const cached = idem.get(idemKey); if (cached) return reply.code(cached.statusCode).send(cached.body); idem.begin(idemKey); }
 
-    try { await app.docProc.processDocument({ notebookId: normalized.notebookId, sourceId: normalized.sourceId, text: normalized.text, sourceType: normalized.sourceType, fileUrl: normalized.fileUrl }); } catch {}
+    await app.docProc.processDocument({ notebookId: body.notebook_id, sourceId: body.source_id, text: body.text, sourceType: body.source_type, fileUrl: body.file_url, correlationId: (req as any).correlationId });
 
     app.jobs.add('process-document', async () => {
-      try {
-        await app.docProc.processDocument({ notebookId: normalized.notebookId, sourceId: normalized.sourceId, text: normalized.text, sourceType: normalized.sourceType, fileUrl: normalized.fileUrl });
-        if (normalized.callbackUrl) { try { await undiciRequest(normalized.callbackUrl, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ source_id: normalized.sourceId, status: 'completed' }) }); } catch {} }
-      } catch (e) {
-        try { if ((app.db as any).updateSourceStatus && normalized.sourceId) await (app.db as any).updateSourceStatus(normalized.sourceId, 'failed'); } catch {}
-        if (normalized.callbackUrl) { try { await undiciRequest(normalized.callbackUrl, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ source_id: normalized.sourceId, status: 'failed' }) }); } catch {} }
-      }
+      try { await app.docProc.processDocument({ notebookId: body.notebook_id, sourceId: body.source_id, text: body.text, sourceType: body.source_type, fileUrl: body.file_url, correlationId: (req as any).correlationId }); if (body.callback_url) { try { await undiciRequest(body.callback_url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ source_id: body.source_id, status: 'completed' }) }); } catch {} } }
+      catch (e) { try { if ((app.db as any).updateSourceStatus && body.source_id) await (app.db as any).updateSourceStatus(body.source_id, 'failed'); } catch {} if (body.callback_url) { try { await undiciRequest(body.callback_url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ source_id: body.source_id, status: 'failed' }) }); } catch {} } }
     }, {});
 
     const response = { success: true, message: 'Document processing initiated' };
@@ -168,38 +147,45 @@ export function buildApp(deps?: Partial<AppDeps>): FastifyInstance {
   });
 
   app.post('/webhook/process-additional-sources', async (req: FastifyRequest, reply: FastifyReply) => {
-    const body: any = (req as any).body ?? {};
-    const type = body?.type;
+    if (!(await ensureGpuAvailable())) {
+      return reply.code(503).send({ code: 'GPU_REQUIRED', message: 'GPU enforcement active; device not available', correlation_id: (req as any).id });
+    }
+    const b: any = (req as any).body ?? {};
+    const body = { ...b, sourceId: b.sourceId ?? (Array.isArray(b.sourceIds)? b.sourceIds[0]: undefined) };
 
     const idemKey = (req.headers['idempotency-key'] as string|undefined)?.trim();
     if (idemKey) { const cached = idem.get(idemKey); if (cached) return reply.code(cached.statusCode).send(cached.body); idem.begin(idemKey); }
 
-    if (type === 'copied-text') {
-      if (!body.notebookId || !body.content || !(body.sourceId || (Array.isArray(body.sourceIds) && body.sourceIds.length))) {
+    if (body.type === 'copied-text') {
+      try {
+        requireFields(body, ['notebookId','content','sourceId']);
+        await app.docProc.processDocument({ notebookId: body.notebookId, sourceId: body.sourceId, text: body.content, sourceType: 'txt', correlationId: (req as any).correlationId });
+        const res = { success: true, message: 'copied-text data sent to webhook successfully', webhookResponse: 'OK' };
+        if (idemKey) idem.complete(idemKey, { statusCode: 200, body: res });
+        return reply.code(200).send(res);
+      } catch (e) {
         const res = { code: 'UNPROCESSABLE_ENTITY', message: 'Invalid copied-text payload' };
         if (idemKey) idem.complete(idemKey, { statusCode: 422, body: res });
         return reply.code(422).send(res);
       }
-      const sourceId = body.sourceId ?? (body.sourceIds?.[0]);
-      await app.docProc.processDocument({ notebookId: body.notebookId, sourceId, text: body.content, sourceType: 'txt' });
-      const res = { success: true, message: 'copied-text data sent to webhook successfully', webhookResponse: 'OK' };
-      if (idemKey) idem.complete(idemKey, { statusCode: 200, body: res });
-      return reply.code(200).send(res);
-    } else if (type === 'multiple-websites') {
-      if (!body.notebookId || !Array.isArray(body.urls) || !Array.isArray(body.sourceIds) || body.urls.length === 0) {
+    }
+    if (body.type === 'multiple-websites') {
+      try {
+        requireFields(body, ['notebookId','urls']);
+        const urls: string[] = body.urls ?? [];
+        const sourceIds: string[] = b.sourceIds ?? [];
+        for (let i = 0; i < urls.length; i++) {
+          const sid = sourceIds[i] ?? sourceIds[0];
+          await app.docProc.processDocument({ notebookId: body.notebookId, sourceId: sid, text: `Fetched: ${urls[i]}`, sourceType: 'txt', correlationId: (req as any).correlationId });
+        }
+        const res = { success: true, message: 'multiple-websites data sent to webhook successfully', webhookResponse: 'OK' };
+        if (idemKey) idem.complete(idemKey, { statusCode: 200, body: res });
+        return reply.code(200).send(res);
+      } catch (e) {
         const res = { code: 'UNPROCESSABLE_ENTITY', message: 'Invalid multiple-websites payload' };
         if (idemKey) idem.complete(idemKey, { statusCode: 422, body: res });
         return reply.code(422).send(res);
       }
-      const urls: string[] = body.urls ?? [];
-      const sourceIds: string[] = body.sourceIds ?? [];
-      for (let i = 0; i < urls.length; i++) {
-        const sid = sourceIds[i] ?? sourceIds[0];
-        await app.docProc.processDocument({ notebookId: body.notebookId, sourceId: sid, text: `Fetched: ${urls[i]}`, sourceType: 'txt' });
-      }
-      const res = { success: true, message: 'multiple-websites data sent to webhook successfully', webhookResponse: 'OK' };
-      if (idemKey) idem.complete(idemKey, { statusCode: 200, body: res });
-      return reply.code(200).send(res);
     }
 
     const res = { success: true, message: 'Processed additional sources', webhookResponse: {} };
@@ -210,14 +196,14 @@ export function buildApp(deps?: Partial<AppDeps>): FastifyInstance {
   app.post('/webhook/generate-notebook-content', async (req: FastifyRequest, reply: FastifyReply) => {
     const body: any = (req as any).body ?? {};
     const notebookId = body?.notebookId ?? body?.id ?? null;
-    app.jobs.add('generate-notebook', async () => {
-      try { if ((app.db as any).updateNotebookStatus) { await (app.db as any).updateNotebookStatus(notebookId, 'generating'); await (app.db as any).updateNotebookStatus(notebookId, 'ready'); } } catch {}
-    }, {});
+    app.jobs.add('generate-notebook', async () => { try { if ((app.db as any).updateNotebookStatus) { await (app.db as any).updateNotebookStatus(notebookId, 'generating'); await (app.db as any).updateNotebookStatus(notebookId, 'ready'); } } catch {} }, {});
     return reply.code(202).send({ success: true, message: 'Notebook generation started in background' });
   });
 
   app.post('/webhook/generate-audio', async (req: FastifyRequest, reply: FastifyReply) => {
-    const body: any = (req as any).body ?? {};
+    const b: any = (req as any).body ?? {};
+    const body = { ...b, notebook_id: b.notebook_id ?? b.notebookId };
+    requireFields(body, ['notebook_id']);
     const notebookId: string | null = body?.notebook_id ?? null;
     const callbackUrl: string | null = body?.callback_url ?? null;
 
@@ -233,14 +219,7 @@ export function buildApp(deps?: Partial<AppDeps>): FastifyInstance {
         const audioUrl = await (app as any).storage.upload(bin, path);
         if ((db as any).setNotebookAudio && notebookId) await (db as any).setNotebookAudio(notebookId, audioUrl);
         if ((db as any).updateNotebookStatus && notebookId) await (db as any).updateNotebookStatus(notebookId, 'completed');
-        if (callbackUrl) {
-          for (let i = 0; i < 2; i++) {
-            try {
-              await undiciRequest(callbackUrl, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ notebook_id: notebookId, audio_url: audioUrl, status: 'success' }) });
-              break;
-            } catch {}
-          }
-        }
+        if (callbackUrl) { for (let i = 0; i < 2; i++) { try { await undiciRequest(callbackUrl, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ notebook_id: notebookId, audio_url: audioUrl, status: 'success' }) }); break; } catch {} } }
       } catch (e) {
         try { if ((db as any).updateNotebookStatus && notebookId) await (db as any).updateNotebookStatus(notebookId, 'failed'); } catch {}
         if (callbackUrl) { try { await undiciRequest(callbackUrl, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ notebook_id: notebookId, status: 'failed' }) }); } catch {} }

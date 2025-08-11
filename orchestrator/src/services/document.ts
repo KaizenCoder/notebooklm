@@ -42,13 +42,9 @@ export function createDocumentProcessor(env: Env, deps?: {
       const pos = globalText.indexOf(slice);
       let fromLine = 1, toLine = lines.length;
       if (pos >= 0) {
-        for (let i = 0; i < cumulative.length; i++) {
-          if (cumulative[i] >= pos + 1) { fromLine = i + 1; break; }
-        }
+        for (let i = 0; i < cumulative.length; i++) { if (cumulative[i] >= pos + 1) { fromLine = i + 1; break; } }
         const posEnd = pos + slice.length;
-        for (let i = 0; i < cumulative.length; i++) {
-          if (cumulative[i] >= posEnd) { toLine = i + 1; break; }
-        }
+        for (let i = 0; i < cumulative.length; i++) { if (cumulative[i] >= posEnd) { toLine = i + 1; break; } }
       }
       chunks.push({ text: slice, from: fromLine, to: toLine });
       if (end === tokens.length) break;
@@ -65,25 +61,60 @@ export function createDocumentProcessor(env: Env, deps?: {
     return '';
   }
 
+  async function mapWithConcurrency<T, R>(items: T[], limit: number, mapper: (item: T, index: number) => Promise<R>): Promise<R[]> {
+    const results: R[] = new Array(items.length) as any;
+    let next = 0;
+    let active = 0;
+    return new Promise<R[]>((resolve, reject) => {
+      const launchNext = () => {
+        if (next >= items.length && active === 0) { resolve(results); return; }
+        while (active < limit && next < items.length) {
+          const currentIndex = next++;
+          active++;
+          mapper(items[currentIndex], currentIndex)
+            .then((res) => { results[currentIndex] = res; })
+            .catch((_e) => { /* swallow per-chunk embedding errors */ results[currentIndex] = undefined as any; })
+            .finally(() => { active--; launchNext(); });
+        }
+      };
+      launchNext();
+    });
+  }
+
   return {
-    async processDocument(payload: { notebookId?: string; sourceId?: string; text?: string; sourceType?: string; fileUrl?: string }) {
+    async processDocument(payload: { notebookId?: string; sourceId?: string; text?: string; sourceType?: string; fileUrl?: string; correlationId?: string }) {
+      const t0 = Date.now();
       const fullText = await loadTextFromSource({ text: payload.text, sourceType: payload.sourceType, fileUrl: payload.fileUrl });
+      const t1 = Date.now();
       const chunks = chunkTokens(fullText);
-      const docs: UpsertDoc[] = [];
 
       if (db?.updateSourceStatus && payload.sourceId) { try { await db.updateSourceStatus(payload.sourceId, 'indexing'); } catch {} }
 
-      // batch embeddings (simulate by awaiting sequentially; real impl could parallelize with Promise.allSettled in limited concurrency)
-      for (const c of chunks) {
-        let embedding: number[] = [];
+      const embeddings: number[][] = await mapWithConcurrency(chunks, 4, async (c) => {
         if (env.OLLAMA_EMBED_MODEL && typeof ollama?.embeddings === 'function') {
-          try { embedding = await ollama.embeddings(env.OLLAMA_EMBED_MODEL, c.text); } catch { embedding = []; }
+          try { return await ollama.embeddings(env.OLLAMA_EMBED_MODEL, c.text); } catch { return []; }
         }
-        docs.push({ text: c.text, embedding, metadata: { notebook_id: payload.notebookId, source_id: payload.sourceId, loc: { lines: { from: c.from, to: c.to } } } });
-      }
+        return [];
+      });
+      const t2 = Date.now();
+
+      const docs: UpsertDoc[] = chunks.map((c, i) => ({
+        text: c.text,
+        embedding: embeddings[i] ?? [],
+        metadata: { notebook_id: payload.notebookId, source_id: payload.sourceId, loc: { lines: { from: c.from, to: c.to } } }
+      }));
 
       if (db?.upsertDocuments) { await db.upsertDocuments(docs); }
       if (db?.updateSourceStatus && payload.sourceId) { try { await db.updateSourceStatus(payload.sourceId, 'ready'); } catch {} }
+
+      const t3 = Date.now();
+      if (typeof console?.log === 'function') {
+        console.log(JSON.stringify({
+          event: 'doc.processed', correlation_id: payload.correlationId ?? null,
+          timings_ms: { load: t1 - t0, embed: t2 - t1, upsert: t3 - t2, total: t3 - t0 },
+          chunks: chunks.length
+        }));
+      }
       return { chunks: docs.length };
     }
   };

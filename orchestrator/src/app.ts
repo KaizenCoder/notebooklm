@@ -154,12 +154,14 @@ export function buildApp(deps?: Partial<AppDeps>): FastifyInstance {
           tMatchEnd = Date.now();
         }
       } catch {}
+      const tGen0 = Date.now();
       const chatRes = await ollama.chat(env.OLLAMA_LLM_MODEL, messages); const text = chatRes?.message?.content ?? '';
+      const tGen1 = Date.now();
       try { const lastUser = messages[messages.length - 1]; if (lastUser?.role && lastUser?.content) await db.insertMessage(notebookId ?? null, lastUser.role, lastUser.content); if (text) await db.insertMessage(notebookId ?? null, 'assistant', text); } catch {}
       const t1 = Date.now();
       const rag_total_ms = t1 - t0;
       const match_ms = tMatchStart && tMatchEnd ? (tMatchEnd - tMatchStart) : null;
-      app.log.info({ correlation_id: (req as any).id, event_code: 'RAG_COMPLETE', route: '/webhook/chat', rag_duration_ms: rag_total_ms, match_documents_ms: match_ms }, 'RAG complete');
+      app.log.info({ correlation_id: (req as any).id, event_code: 'RAG_COMPLETE', route: '/webhook/chat', rag_duration_ms: rag_total_ms, match_documents_ms: match_ms, llm_generate_ms: tGen1 - tGen0 }, 'RAG complete');
       return reply.code(200).send({ success: true, data: { output: [{ text, citations }] } });
     }
     return reply.code(200).send({ success: true, data: { output: [] } });

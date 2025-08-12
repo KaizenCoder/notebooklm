@@ -5,25 +5,36 @@ team: team-01
 team_name: foundations
 tm_ids: ["17", "17.1", "17.2", "17.3"]
 scope: resilience
-status: draft
-version: 1.0
+status: completed
+version: 1.1
 author: ia
+audit_status: reviewed_and_improved
 related_files:
   - orchestrator/src/utils/resilience.ts
   - orchestrator/src/utils/index.ts
+  - orchestrator/src/config/adapters.ts
   - orchestrator/test/integration/resilience.test.ts
+  - orchestrator/test/integration/production-security.test.ts
   - orchestrator/package.json
+audit_improvements:
+  - "SLO-based production defaults (500ms initial delay, 1.5x backoff, 10s timeout)"
+  - "Comprehensive telemetry system with ResilienceMetrics collector"
+  - "Enhanced circuit breaker with 5-failure threshold and 60s reset"
+  - "Rate limit detection in retry condition logic"
+  - "Production-optimized configuration separation"
 ---
 
 # Claim — Resilience — Framework de tolérance aux pannes avec retry, timeout, circuit breaker
 
 #TEST: orchestrator/test/integration/resilience.test.ts
+#TEST: orchestrator/test/integration/production-security.test.ts
 
 ## Résumé (TL;DR)
 
 - Problème constaté: Absence de framework de résilience pour gérer les défaillances réseau, timeouts et pannes de services externes (Ollama, APIs).
 - Proposition succincte: Implémentation d'un framework complet avec retry exponentiel, timeouts configurables, circuit breaker et adaptateur Ollama résilient.
 - Bénéfice attendu: Stabilité et robustesse de l'orchestrateur face aux défaillances, réduction des erreurs utilisateur, amélioration de l'expérience.
+- **Statut audit**: ✅ Recommandations appliquées avec succès - Production-ready avec télémétrie et sécurité renforcée.
 
 ## Contexte
 
@@ -53,20 +64,24 @@ related_files:
 
 ## Critères d'acceptation
 
-- [ ] CA1: Mécanisme de retry avec backoff exponentiel et conditions configurables
-- [ ] CA2: Wrapper de timeout avec types d'erreurs personnalisés
-- [ ] CA3: Circuit breaker avec états CLOSED/OPEN/HALF_OPEN
-- [ ] CA4: Adaptateur Ollama résilient avec intégration transparente
-- [ ] CA5: Suite de tests complète (17 tests) validant tous les cas d'usage
-- [ ] CA6: Types TypeScript stricts et documentation inline
+- [x] CA1: Mécanisme de retry avec backoff exponentiel et conditions configurables
+- [x] CA2: Wrapper de timeout avec types d'erreurs personnalisés
+- [x] CA3: Circuit breaker avec états CLOSED/OPEN/HALF_OPEN
+- [x] CA4: Adaptateur Ollama résilient avec intégration transparente
+- [x] CA5: Suite de tests complète (17 tests) validant tous les cas d'usage
+- [x] CA6: Types TypeScript stricts et documentation inline
+- [x] CA7: **Télémétrie complète** avec système de métriques ResilienceMetrics
+- [x] CA8: **Configuration production** avec PRODUCTION_DEFAULTS optimisés SLO
+- [x] CA9: **Tests sécurité** (5 tests additionnels) validant comportement production
 
 ## Impacts
 
 - API/Contrats I/O: Aucun impact sur les APIs externes, wrapper transparent
-- Code & modules: Nouveau module `src/utils/resilience.ts` avec exports propres
+- Code & modules: Module `src/utils/resilience.ts` + configuration `src/config/adapters.ts`
 - Schéma/DB/Storage: Aucun impact
-- Performance/latences: Amélioration de la robustesse, retry intelligent
-- Sécurité/compliance: Pas d'impact sécurité
+- Performance/latences: **Amélioration significative** - SLO-optimized (500ms initial, 10s timeout)
+- Sécurité/compliance: **Renforcée** - Détection rate limit et configuration environnement
+- **Télémétrie**: Métriques complètes (retry, timeout, circuit breaker, succès/échecs)
 
 ## Risques et alternatives
 
@@ -89,9 +104,12 @@ related_files:
 
 ## Limitations
 
-- Ce document implémente un framework générique sans optimisations spécifiques par service
-- Les métriques de performance sont indicatives et dépendent des services externes
-- Configuration initiale basée sur des valeurs raisonnables, ajustement possible
+- ~~Ce document implémente un framework générique sans optimisations spécifiques par service~~
+- **✅ RÉSOLU**: Configuration spécifique par environnement et service via `PRODUCTION_DEFAULTS`
+- ~~Les métriques de performance sont indicatives et dépendent des services externes~~
+- **✅ RÉSOLU**: Télémétrie complète avec système de métriques ResilienceMetrics
+- ~~Configuration initiale basée sur des valeurs raisonnables, ajustement possible~~
+- **✅ RÉSOLU**: Configuration SLO-optimized pour production (500ms, 10s, 5-threshold)
 
 ## Suivi Task‑Master
 
@@ -100,7 +118,12 @@ related_files:
   - `task-master set-status --id=17 --status=completed`
   - `task-master add-evidence --id=17 --file=orchestrator/src/utils/resilience.ts`
   - `task-master add-evidence --id=17 --file=orchestrator/test/integration/resilience.test.ts`
+  - `task-master add-evidence --id=17 --file=orchestrator/src/config/adapters.ts`
+  - `task-master add-evidence --id=17 --file=orchestrator/test/integration/production-security.test.ts`
 
 ## Historique des versions
+
+- v1.0: Création du claim pour Task 17 - Framework de résilience implémenté
+- **v1.1**: **Application des recommandations d'audit** - Production-ready avec télémétrie et sécurité
 
 - v1.0: Création du claim pour Task 17 - Framework de résilience implémenté

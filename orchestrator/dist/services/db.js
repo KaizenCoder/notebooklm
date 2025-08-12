@@ -91,13 +91,27 @@ export function createDb(env) {
             }
         },
         async upsertDocuments(docs) {
+            // In mock/no-DB mode, keep behavior simple
             if (!pool)
                 return { count: docs.length };
             const client = await pool.connect();
             try {
-                const sql = 'insert into documents (text, embedding, metadata) values ($1, $2, $3)';
-                for (const d of docs) {
-                    await client.query(sql, [d.text, d.embedding, d.metadata ?? {}]);
+                // Batch inserts to reduce round-trips; safe for any doc count
+                const BATCH = 100;
+                for (let i = 0; i < docs.length; i += BATCH) {
+                    const chunk = docs.slice(i, i + BATCH);
+                    if (chunk.length === 0)
+                        continue;
+                    // Build a single multi-values INSERT: ($1,$2,$3), ($4,$5,$6), ...
+                    const values = [];
+                    const params = [];
+                    chunk.forEach((d, idx) => {
+                        const base = idx * 3;
+                        values.push(`($${base + 1}, $${base + 2}, $${base + 3})`);
+                        params.push(d.text, d.embedding, d.metadata ?? {});
+                    });
+                    const sql = `insert into documents (text, embedding, metadata) values ${values.join(', ')}`;
+                    await client.query(sql, params);
                 }
                 return { count: docs.length };
             }

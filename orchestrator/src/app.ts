@@ -148,11 +148,23 @@ export function buildApp(deps?: Partial<AppDeps>): FastifyInstance {
     if (env.OLLAMA_LLM_MODEL && messages.length) {
       const t0 = Date.now();
       app.log.info({ correlation_id: (req as any).id, event_code: 'RAG_START', route: '/webhook/chat' }, 'RAG start');
-      let citations: any[] = []; try { const query = messages[messages.length - 1]?.content as string | undefined; if (query) citations = (await supabase.matchDocuments(query, notebookId)).slice(0, 5); } catch {}
+      let citations: any[] = [];
+      let tMatchStart: number | null = null;
+      let tMatchEnd: number | null = null;
+      try {
+        const query = messages[messages.length - 1]?.content as string | undefined;
+        if (query) {
+          tMatchStart = Date.now();
+          citations = (await supabase.matchDocuments(query, notebookId)).slice(0, 5);
+          tMatchEnd = Date.now();
+        }
+      } catch {}
       const chatRes = await ollama.chat(env.OLLAMA_LLM_MODEL, messages); const text = chatRes?.message?.content ?? '';
       try { const lastUser = messages[messages.length - 1]; if (lastUser?.role && lastUser?.content) await db.insertMessage(notebookId ?? null, lastUser.role, lastUser.content); if (text) await db.insertMessage(notebookId ?? null, 'assistant', text); } catch {}
       const t1 = Date.now();
-      app.log.info({ correlation_id: (req as any).id, event_code: 'RAG_COMPLETE', route: '/webhook/chat', rag_duration_ms: t1 - t0 }, 'RAG complete');
+      const rag_total_ms = t1 - t0;
+      const match_ms = tMatchStart && tMatchEnd ? (tMatchEnd - tMatchStart) : null;
+      app.log.info({ correlation_id: (req as any).id, event_code: 'RAG_COMPLETE', route: '/webhook/chat', rag_duration_ms: rag_total_ms, match_documents_ms: match_ms }, 'RAG complete');
       return reply.code(200).send({ success: true, data: { output: [{ text, citations }] } });
     }
     return reply.code(200).send({ success: true, data: { output: [] } });
@@ -177,8 +189,19 @@ export function buildApp(deps?: Partial<AppDeps>): FastifyInstance {
     await app.docProc.processDocument({ notebookId: body.notebook_id, sourceId: body.source_id, text: body.text, sourceType: body.source_type, fileUrl: body.file_url, correlationId: (req as any).correlationId });
 
     app.jobs.add('process-document', async () => {
-      try { await app.docProc.processDocument({ notebookId: body.notebook_id, sourceId: body.source_id, text: body.text, sourceType: body.source_type, fileUrl: body.file_url, correlationId: (req as any).correlationId }); if (body.callback_url) { try { await undiciRequest(body.callback_url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ source_id: body.source_id, status: 'completed' }) }); } catch {} } }
-      catch (e) { try { if ((app.db as any).updateSourceStatus && body.source_id) await (app.db as any).updateSourceStatus(body.source_id, 'failed'); } catch {} if (body.callback_url) { try { await undiciRequest(body.callback_url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ source_id: body.source_id, status: 'failed' }) }); } catch {} } }
+      try {
+        await app.docProc.processDocument({ notebookId: body.notebook_id, sourceId: body.source_id, text: body.text, sourceType: body.source_type, fileUrl: body.file_url, correlationId: (req as any).correlationId });
+        if (body.callback_url) {
+          try {
+            await undiciRequest(body.callback_url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ source_id: body.source_id, status: 'completed' }) });
+            app.log.info({ correlation_id: (req as any).id, event_code: 'CALLBACK_SENT', route: '/webhook/process-document', callback_host: (() => { try { return new URL(String(body.callback_url)).host; } catch { return undefined; } })() }, 'Callback sent');
+          } catch {}
+        }
+      }
+      catch (e) {
+        try { if ((app.db as any).updateSourceStatus && body.source_id) await (app.db as any).updateSourceStatus(body.source_id, 'failed'); } catch {}
+        if (body.callback_url) { try { await undiciRequest(body.callback_url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ source_id: body.source_id, status: 'failed' }) }); app.log.info({ correlation_id: (req as any).id, event_code: 'CALLBACK_SENT', route: '/webhook/process-document', callback_host: (() => { try { return new URL(String(body.callback_url)).host; } catch { return undefined; } })() }, 'Callback sent'); } catch {} }
+      }
     }, {});
 
     const response = { success: true, message: 'Document processing initiated' };

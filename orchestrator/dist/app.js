@@ -173,10 +173,15 @@ export function buildApp(deps) {
             const t0 = Date.now();
             app.log.info({ correlation_id: req.id, event_code: 'RAG_START', route: '/webhook/chat' }, 'RAG start');
             let citations = [];
+            let tMatchStart = null;
+            let tMatchEnd = null;
             try {
                 const query = messages[messages.length - 1]?.content;
-                if (query)
+                if (query) {
+                    tMatchStart = Date.now();
                     citations = (await supabase.matchDocuments(query, notebookId)).slice(0, 5);
+                    tMatchEnd = Date.now();
+                }
             }
             catch { }
             const chatRes = await ollama.chat(env.OLLAMA_LLM_MODEL, messages);
@@ -190,7 +195,9 @@ export function buildApp(deps) {
             }
             catch { }
             const t1 = Date.now();
-            app.log.info({ correlation_id: req.id, event_code: 'RAG_COMPLETE', route: '/webhook/chat', rag_duration_ms: t1 - t0 }, 'RAG complete');
+            const rag_total_ms = t1 - t0;
+            const match_ms = tMatchStart && tMatchEnd ? (tMatchEnd - tMatchStart) : null;
+            app.log.info({ correlation_id: req.id, event_code: 'RAG_COMPLETE', route: '/webhook/chat', rag_duration_ms: rag_total_ms, match_documents_ms: match_ms }, 'RAG complete');
             return reply.code(200).send({ success: true, data: { output: [{ text, citations }] } });
         }
         return reply.code(200).send({ success: true, data: { output: [] } });
@@ -220,6 +227,12 @@ export function buildApp(deps) {
                 if (body.callback_url) {
                     try {
                         await undiciRequest(body.callback_url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ source_id: body.source_id, status: 'completed' }) });
+                        app.log.info({ correlation_id: req.id, event_code: 'CALLBACK_SENT', route: '/webhook/process-document', callback_host: (() => { try {
+                                return new URL(String(body.callback_url)).host;
+                            }
+                            catch {
+                                return undefined;
+                            } })() }, 'Callback sent');
                     }
                     catch { }
                 }
@@ -233,6 +246,12 @@ export function buildApp(deps) {
                 if (body.callback_url) {
                     try {
                         await undiciRequest(body.callback_url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ source_id: body.source_id, status: 'failed' }) });
+                        app.log.info({ correlation_id: req.id, event_code: 'CALLBACK_SENT', route: '/webhook/process-document', callback_host: (() => { try {
+                                return new URL(String(body.callback_url)).host;
+                            }
+                            catch {
+                                return undefined;
+                            } })() }, 'Callback sent');
                     }
                     catch { }
                 }

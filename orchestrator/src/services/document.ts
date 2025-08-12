@@ -29,29 +29,26 @@ export function createDocumentProcessor(env: Env, deps?: {
     const lines = text.split(/\r?\n/);
     const tokens = tokenizeWords(text);
     if (tokens.length === 0) return [];
+
+    // Build a token->line index to robustly map token ranges to line ranges
+    const tokenLine: number[] = [];
+    {
+      let lineIdx = 1;
+      for (const line of lines) {
+        const lineTokens = line.split(/\s+/).filter(Boolean).length;
+        for (let i = 0; i < lineTokens; i++) tokenLine.push(lineIdx);
+        lineIdx++;
+      }
+    }
+
     const chunks: Array<{ text: string; from: number; to: number }> = [];
     let start = 0;
-    // Maintain a forward search offset to disambiguate repeated slices
-    let searchFrom = 0;
     while (start < tokens.length) {
       const end = Math.min(tokens.length, start + targetTokens);
-      const slice = tokens.slice(start, end).join(' ');
-      // approximate line mapping by scanning cumulative lengths
-      const cumulative: number[] = [];
-      let acc = 0;
-      for (const l of lines) { acc += l.length + 1; cumulative.push(acc); }
-      const globalText = text;
-      // Prefer a forward search starting at the last matched end to cope with repeats
-      let pos = globalText.indexOf(slice, searchFrom);
-      if (pos < 0) pos = globalText.indexOf(slice);
-      let fromLine = 1, toLine = lines.length;
-      if (pos >= 0) {
-        for (let i = 0; i < cumulative.length; i++) { if (cumulative[i] >= pos + 1) { fromLine = i + 1; break; } }
-        const posEnd = pos + slice.length;
-        for (let i = 0; i < cumulative.length; i++) { if (cumulative[i] >= posEnd) { toLine = i + 1; break; } }
-        // Advance search offset for the next chunk to ensure monotonic mapping
-        searchFrom = Math.max(searchFrom, posEnd);
-      }
+      const sliceTokens = tokens.slice(start, end);
+      const slice = sliceTokens.join(' ');
+      const fromLine = tokenLine[start] ?? 1;
+      const toLine = tokenLine[end - 1] ?? lines.length;
       chunks.push({ text: slice, from: fromLine, to: toLine });
       if (end === tokens.length) break;
       start = Math.max(0, end - overlapTokens);
@@ -96,12 +93,17 @@ export function createDocumentProcessor(env: Env, deps?: {
   return {
     async processDocument(payload: { notebookId?: string; sourceId?: string; text?: string; sourceType?: string; fileUrl?: string; correlationId?: string }) {
       const t0 = Date.now();
+      const tExtractStart = Date.now();
       const fullText = await loadTextFromSource({ text: payload.text, sourceType: payload.sourceType, fileUrl: payload.fileUrl });
-      const t1 = Date.now();
+      const tExtractEnd = Date.now();
+      if (typeof console?.log === 'function') {
+        console.log(JSON.stringify({ event: 'EXTRACT_COMPLETE', correlation_id: payload.correlationId ?? null, extract_duration_ms: tExtractEnd - tExtractStart }));
+      }
       const chunks = chunkTokens(fullText);
 
       if (db?.updateSourceStatus && payload.sourceId) { try { await db.updateSourceStatus(payload.sourceId, 'indexing'); } catch {} }
 
+      const tEmbedStart = Date.now();
       const embeddings: number[][] = await mapWithConcurrency(chunks, 4, async (c) => {
         if (env.OLLAMA_EMBED_MODEL && typeof ollama?.embeddings === 'function') {
           try {
@@ -116,6 +118,9 @@ export function createDocumentProcessor(env: Env, deps?: {
         return [];
       });
       const t2 = Date.now();
+      if (typeof console?.log === 'function') {
+        console.log(JSON.stringify({ event: 'EMBED_COMPLETE', correlation_id: payload.correlationId ?? null, embed_duration_ms: t2 - tEmbedStart, chunks: chunks.length }));
+      }
 
       const docs: UpsertDoc[] = chunks.map((c, i) => ({
         text: c.text,
@@ -123,14 +128,16 @@ export function createDocumentProcessor(env: Env, deps?: {
         metadata: { notebook_id: payload.notebookId, source_id: payload.sourceId, loc: { lines: { from: c.from, to: c.to } } }
       }));
 
+      if (typeof console?.log === 'function') { console.log(JSON.stringify({ event: 'UPSERT_START', correlation_id: payload.correlationId ?? null, count: docs.length })); }
       if (db?.upsertDocuments) { await db.upsertDocuments(docs); }
       if (db?.updateSourceStatus && payload.sourceId) { try { await db.updateSourceStatus(payload.sourceId, 'ready'); } catch {} }
 
       const t3 = Date.now();
       if (typeof console?.log === 'function') {
+        console.log(JSON.stringify({ event: 'UPSERT_COMPLETE', correlation_id: payload.correlationId ?? null, upsert_duration_ms: t3 - t2, count: docs.length }));
         console.log(JSON.stringify({
           event: 'doc.processed', correlation_id: payload.correlationId ?? null,
-          timings_ms: { load: t1 - t0, embed: t2 - t1, upsert: t3 - t2, total: t3 - t0 },
+          timings_ms: { extract: tExtractEnd - tExtractStart, embed: t2 - tEmbedStart, upsert: t3 - t2, total: t3 - t0 },
           chunks: chunks.length
         }));
       }

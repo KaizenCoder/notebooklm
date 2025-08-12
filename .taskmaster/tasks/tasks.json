@@ -140,11 +140,11 @@
         "dependencies": ["8"],
         "description": "[Clone strict] Respect metadata {notebook_id, source_id, loc.lines.from/to}; batch embeddings.",
         "subtasks": [
-          { "id": 2, "title": "SPEC: Règles chunking + métadonnées", "status": "pending" },
-          { "id": 3, "title": "IMPL: Chunker tokens~200 + overlap + batch embeddings 768d", "status": "in-progress" },
-          { "id": 4, "title": "TEST: Dims, overlap, idempotence", "status": "in-progress" },
+          { "id": 2, "title": "SPEC: Règles chunking + métadonnées", "status": "review" },
+          { "id": 3, "title": "IMPL: Chunker tokens~200 + overlap + batch embeddings 768d", "status": "review" },
+          { "id": 4, "title": "TEST: Dims, overlap, idempotence", "status": "done" },
           { "id": 5, "title": "AUDIT: Parité indexation/metadata", "status": "review" },
-          { "id": 1, "title": "Unit tests (metadata + dims)", "status": "pending" }
+          { "id": 1, "title": "Unit tests (metadata + dims)", "status": "done" }
         ]
       },
       {
@@ -164,6 +164,8 @@
           { "id": 6, "title": "IMPL: Redaction secrets + sampling", "status": "pending" },
           { "id": 10, "title": "TEST: Redaction — pas de header Authorization ni secrets en logs", "status": "pending" },
           { "id": 11, "title": "TEST: Métriques latences présentes dans logs d’étapes", "status": "pending" },
+          { "id": 12, "title": "IMPL: Métriques latences chat (match_documents, rag_total)", "status": "pending" },
+          { "id": 13, "title": "IMPL: Évènements EXTRACT/EMBED/UPSERT pour process-document", "status": "pending" },
           { "id": 7, "title": "IMPL: Métriques latences (extract/embed/rag)", "status": "pending" },
           { "id": 1, "title": "Contract-consistent error responses", "status": "done" }
         ]
@@ -301,7 +303,7 @@
     ],
     "metadata": {
       "created": "2025-08-11T13:58:41.290Z",
-  "updated": "2025-08-12T11:36:00.000Z",
+  "updated": "2025-08-12T11:52:00.000Z",
       "description": "Tasks for master context (clone parity, no MVP)"
     }
   }

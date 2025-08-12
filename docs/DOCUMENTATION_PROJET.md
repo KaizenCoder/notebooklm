@@ -219,6 +219,25 @@ Variante — Modèles Ollama sur D:/modeles_llm (Windows)
 - Timeouts et retry (download Storage, requêtes Ollama/Whisper/TTS, insertions DB).
 - Callback de fin de traitement pour mises à jour de statut.
 
+### 12bis) Mode No‑Mocks (exécution réelle obligatoire)
+- Variable `NO_MOCKS=1` active des garde‑fous runtime interdisant les mocks.
+  - DB: `createDb` jette si `POSTGRES_DSN` absent.
+  - GPU: `GPU_ONLY=1` + probe embeddings obligatoire.
+  - Whisper/Storage/Coqui: URLs requises; pannes → `/ready` 503.
+- Hook Git pre‑push obligatoire:
+  - Emplacement: `scripts/git-hooks/pre-push`
+  - Action: exécute `ci/no-mocks-check.ps1` qui lance un E2E minimal avec `NO_MOCKS=1` (échoue si dépendances réelles indisponibles).
+- Commande manuelle:
+```powershell
+pwsh -NoProfile -ExecutionPolicy Bypass -File ci\no-mocks-check.ps1
+```
+
+#TEST: ci/no-mocks-check.ps1
+
+## Limitations
+- Le mode No‑Mocks nécessite que DB/Ollama/Whisper/Storage soient démarrés localement.
+- Le hook pre‑push peut être désactivé localement; l’intégration CI doit reproduire ce contrôle.
+
 ## 13) Performances & limites
 - Embeddings/LLM locaux: dépendants du matériel (CPU/GPU, VRAM).
 - Optimisations: batch embeddings, cache de chunks, topK et seuils de similarité, normalisation texte.

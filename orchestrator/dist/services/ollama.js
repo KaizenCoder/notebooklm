@@ -22,11 +22,11 @@ export function createOllama(env) {
                 throw new Error(`Ollama tags failed: ${res.statusCode}`);
             return res.body.json();
         },
-        async chat(model, messages) {
+        async chat(model, messages, correlationId) {
             return withRetry(async () => {
                 const res = await request(`${base}/api/chat`, {
                     method: 'POST',
-                    headers: { 'content-type': 'application/json' },
+                    headers: { 'content-type': 'application/json', ...(correlationId ? { 'x-correlation-id': correlationId } : {}) },
                     headersTimeout: TIMEOUT_MS,
                     bodyTimeout: TIMEOUT_MS,
                     body: JSON.stringify({ model, messages })
@@ -36,11 +36,11 @@ export function createOllama(env) {
                 return res.body.json();
             });
         },
-        async embeddings(model, prompt) {
+        async embeddings(model, prompt, correlationId) {
             return withRetry(async () => {
                 const res = await request(`${base}/api/embeddings`, {
                     method: 'POST',
-                    headers: { 'content-type': 'application/json' },
+                    headers: { 'content-type': 'application/json', ...(correlationId ? { 'x-correlation-id': correlationId } : {}) },
                     headersTimeout: TIMEOUT_MS,
                     bodyTimeout: TIMEOUT_MS,
                     body: JSON.stringify({ model, prompt })
@@ -51,11 +51,11 @@ export function createOllama(env) {
                 return Array.isArray(data.embedding) ? data.embedding : [];
             });
         },
-        async checkGpu(embedModel) {
+        async checkGpu(embedModel, correlationId) {
             return withRetry(async () => {
                 const res = await request(`${base}/api/embeddings`, {
                     method: 'POST',
-                    headers: { 'content-type': 'application/json' },
+                    headers: { 'content-type': 'application/json', ...(correlationId ? { 'x-correlation-id': correlationId } : {}) },
                     headersTimeout: TIMEOUT_MS,
                     bodyTimeout: TIMEOUT_MS,
                     body: JSON.stringify({ model: embedModel, prompt: 'ok' })

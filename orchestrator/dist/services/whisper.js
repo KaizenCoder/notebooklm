@@ -3,12 +3,12 @@ export function createWhisper(env) {
     const base = env.WHISPER_ASR_URL ?? '';
     const TIMEOUT_MS = 8000;
     return {
-        async transcribe(url) {
+        async transcribe(url, correlationId) {
             if (!base)
                 throw new Error('WHISPER_ASR_URL not configured');
             const res = await undiciRequest(`${base}/transcribe`, {
                 method: 'POST',
-                headers: { 'content-type': 'application/json' },
+                headers: { 'content-type': 'application/json', ...(correlationId ? { 'x-correlation-id': correlationId } : {}) },
                 headersTimeout: TIMEOUT_MS,
                 bodyTimeout: TIMEOUT_MS,
                 body: JSON.stringify({ url })

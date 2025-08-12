@@ -23,7 +23,7 @@ export function createComms(env) {
         return null;
     const client = createClient({ url: env.REDIS_URL });
     client.on('error', (err) => { /* eslint-disable no-console */ console.error('Redis error', err); });
-    client.connect().catch(() => { });
+    const ready = client.connect().catch(() => { });
     async function xadd(stream, msg) {
         const parsed = MessageSchema.safeParse(msg);
         if (!parsed.success)
@@ -33,6 +33,7 @@ export function createComms(env) {
             flat[k] = typeof v === 'string' ? v : JSON.stringify(v);
         }
         try {
+            await ready;
             await client.xAdd(stream, '*', flat);
         }
         catch { }

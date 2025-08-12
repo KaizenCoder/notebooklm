@@ -3,15 +3,12 @@ import { request as undiciRequest } from 'undici';
 
 export function createStorage(env: Env) {
   const base = env.STORAGE_BASE_URL ?? '';
-  const TIMEOUT_MS = 5000;
 
   return {
     async fetchText(url: string, correlationId?: string): Promise<string> {
       const res = await undiciRequest(url, {
         method: 'GET',
-        headers: correlationId ? { 'x-correlation-id': correlationId } : undefined,
-        headersTimeout: TIMEOUT_MS,
-        bodyTimeout: TIMEOUT_MS
+        headers: correlationId ? { 'x-correlation-id': correlationId } : undefined
       });
       if (res.statusCode >= 400) throw new Error(`Storage GET failed: ${res.statusCode}`);
       return res.body.text();
@@ -21,8 +18,6 @@ export function createStorage(env: Env) {
       const res = await undiciRequest(`${base}/${path}`, {
         method: 'PUT',
         headers: { 'content-type': 'application/octet-stream', ...(correlationId ? { 'x-correlation-id': correlationId } : {}) },
-        headersTimeout: TIMEOUT_MS,
-        bodyTimeout: TIMEOUT_MS,
         body: bin
       });
       if (res.statusCode >= 400) throw new Error(`Storage PUT failed: ${res.statusCode}`);

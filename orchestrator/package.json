@@ -10,7 +10,8 @@
     "test": "npm run -s test:contract && npm run -s test:e2e",
     "test:contract": "tsx test/contract/health.test.ts && tsx test/contract/ready.test.ts && tsx test/contract/ready-failures.test.ts && tsx test/contract/auth.test.ts && tsx test/contract/webhooks.test.ts && tsx test/contract/chat-integration.test.ts && tsx test/contract/chat-persist.test.ts && tsx test/contract/chat-contract-strict.test.ts && tsx test/contract/generate-notebook-job.test.ts && tsx test/contract/process-document-job.test.ts && tsx test/contract/document-embeddings.test.ts && tsx test/contract/embeddings-dim-mismatch.test.ts && tsx test/contract/process-document-status.test.ts && tsx test/contract/additional-sources.test.ts && tsx test/contract/payload-validation.test.ts && tsx test/contract/idempotency.test.ts && tsx test/contract/idempotency-additional-sources.test.ts && tsx test/contract/idempotency-generate-audio.test.ts && tsx test/contract/chunking-overlap-dims.test.ts && tsx test/contract/chunking-overlap-metadata.test.ts && tsx test/contract/chunking-loc-lines-repeats.test.ts && tsx test/contract/generate-audio-invalid.test.ts && tsx test/contract/generate-audio.test.ts && tsx test/contract/generate-audio-callback.test.ts",
     "test:e2e": "tsx test/e2e/chat-edge-send.test.ts",
-    "ci:no-mocks": "cross-env NO_MOCKS=1 GPU_ONLY=1 tsx test/e2e/chat-edge-send.test.ts"
+    "ci:no-mocks": "cross-env NO_MOCKS=1 GPU_ONLY=1 tsx test/e2e/chat-edge-send.test.ts",
+    "prepare:hooks": "pwsh -NoProfile -ExecutionPolicy Bypass -Command \"Copy-Item -Force scripts/git-hooks/pre-push.ps1 .git/hooks/pre-push.ps1\""
   },
   "dependencies": {
     "fastify": "^4.28.1",

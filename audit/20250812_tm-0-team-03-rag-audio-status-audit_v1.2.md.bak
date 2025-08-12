@@ -1,0 +1,42 @@
+---
+title: "État Équipe 3 — v1.2"
+doc_kind: audit
+team: team-03
+team_name: rag-audio
+tm_ids: [0]
+scope: status
+status: current
+version: 1.2
+author: ia
+related_files:
+  - "../claims/20250812_tm-0-team-03-rag-audio-submission-ready-claim_v1.2.md"
+  - "./20250811_tm-1+6-team-03-rag-audio-audit_v1.0.md"
+  - "./20250811_tm-6-team-03-generate-audio-audit_v1.0.md"
+  - "./20250811_tm-10-team-03-logging-errors-audit_v1.0.md"
+  - "./20250811_tm-15-team-03-idempotency-audit_v1.0.md"
+---
+
+# État — Team 03 (RAG & Audio)
+
+#TEST: orchestrator/test/contract/*.test.ts
+#TEST: orchestrator/test/e2e/*.test.ts
+
+## TL;DR
+- Contract: PASS
+- E2E: PASS
+- Chat (tâche 1): SPEC/IMPL/TEST/AUDIT → done
+- Generate‑audio (tâche 6): SPEC/IMPL/TEST/AUDIT → done
+- En cours: 10.* (erreurs/logging), 15.* (idempotence)
+
+## Détails par lot
+- Chat (1): Parité stricte atteinte; citations `loc.lines` et persistance validées.
+- Generate‑audio (6): 202 + job + callback + MAJ notebook; tests de callback PASS.
+- Logging/Erreurs (10): middleware erreurs et correlation_id en cours; tests d’assertions à ajouter.
+- Idempotence (15): DAO/middleware en cours; tests de replays à compléter.
+
+## Prochaines actions
+- 10.4 TEST: ajouter assertions ErrorResponse + traçage `correlation_id`.
+- 15.3 TEST: replays avec `Idempotency-Key` (TTL/fingerprint) sans doublons DB.
+
+## Limitations
+- État basé sur exécutions locales récentes; variations possibles selon environnement.

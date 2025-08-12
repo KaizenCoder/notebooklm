@@ -98,7 +98,14 @@ export function createDocumentProcessor(env: Env, deps?: {
 
       const embeddings: number[][] = await mapWithConcurrency(chunks, 4, async (c) => {
         if (env.OLLAMA_EMBED_MODEL && typeof ollama?.embeddings === 'function') {
-          try { return await ollama.embeddings(env.OLLAMA_EMBED_MODEL, c.text); } catch { return []; }
+          try {
+            const vec = await ollama.embeddings(env.OLLAMA_EMBED_MODEL, c.text);
+            // Enforce 768-dim embeddings (clone strict). If not compliant, throw to surface error.
+            if (Array.isArray(vec) && vec.length === 768) return vec;
+            throw new Error(`Invalid embedding dims: ${Array.isArray(vec) ? vec.length : 'unknown'}`);
+          } catch {
+            return [];
+          }
         }
         return [];
       });

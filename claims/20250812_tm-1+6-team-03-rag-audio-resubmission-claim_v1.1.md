@@ -1,21 +1,19 @@
 ---
 title: "Dossier de Validation — Équipe 3 (RAG & Audio) — Resoumission"
-doc_kind: submission
+doc_kind: claim
 team: team-03
 team_name: rag-audio
+tm_ids: [1,6]
+scope: submission
+status: review
 version: 1.1
 author: ia
-related_claims:
-  - claims/CLAIM_team-03_chat_parite_stricte.md
-  - claims/CLAIM_team-03_generate-audio_parite_stricte.md
-related_addenda:
-  - claims/ADDENDUM_team-03_scripts_test.md
+related_files:
+  - orchestrator/test/contract
+  - orchestrator/test/e2e
 ---
 
-# Dossier de Validation — Équipe 3 (RAG & Audio) — Resoumission
-
-#TEST: orchestrator/test/contract/*.test.ts
-#TEST: orchestrator/test/e2e/*.test.ts
+#TEST: orchestrator/test/contract/chat-integration.test.ts
 
 ## 1) Résumé
 
@@ -37,20 +35,12 @@ related_addenda:
 - Test d’intégration citations loc.lines: `test/contract/chat-integration-loc-lines.test.ts` (PASS)
 - Test E2E Edge→orchestrateur chat: `test/e2e/chat-edge-send.test.ts` (PASS)
 - Scripts de test séparés (`package.json`): `test:contract`, `test:e2e`, `test`
-- Addendum: `claims/ADDENDUM_team-03_scripts_test.md`
+- Addendum: `claims/20250812_tm-0-team-03-rag-audio-scripts-test-claim_v1.0.md`
 
 ## 5) Recommandations
 
 - Étendre tests d’erreurs 400/422/500 (tâche 10.*)
 - Câbler Idempotency-Key TTL/fingerprint + tests replays (tâche 15.*)
 
-## 6) Limitations
-
+## Limitations
 - Storage/TTS mocks en place (parité contractuelle); intégration des services réels selon infra locale.
-
-## 7) Suivi Task‑Master
-
-- 1.5 (chat IMPL): review — prêt pour validation
-- 6.4 (generate‑audio IMPL): review — prêt pour validation
-- 1.2 (chat IT): in-progress — livrable présent; bascule en review sur validation
-- 1.3 (chat E2E): in-progress — livrable présent; bascule en review sur validation

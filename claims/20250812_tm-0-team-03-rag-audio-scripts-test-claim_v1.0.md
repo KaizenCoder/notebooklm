@@ -1,16 +1,20 @@
 ---
 title: "Addendum — Scripts de test (contract vs e2e)"
-doc_kind: addendum
+doc_kind: claim
 team: team-03
 team_name: rag-audio
+tm_ids: [0]
+scope: scripts-test
+status: draft
 version: 1.0
 author: ia
-related:
-  - claims/SUBMISSION_team-03_AUDIT.md
+related_files:
+  - orchestrator/package.json
+  - orchestrator/test/contract
+  - orchestrator/test/e2e
 ---
 
-#TEST: orchestrator/test/contract/*.test.ts
-#TEST: orchestrator/test/e2e/*.test.ts
+#TEST: orchestrator/test/contract/health.test.ts
 
 ## Scripts ajoutés
 
@@ -27,3 +31,6 @@ related:
 - `cd orchestrator`
 - `npm run -s test:contract`
 - `npm run -s test:e2e`
+
+## Limitations
+- Document addendum interne; ne modifie pas les contrats.

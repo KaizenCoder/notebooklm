@@ -2,6 +2,10 @@ import { Env } from '../env.js';
 import pg from 'pg';
 
 export function createDb(env: Env) {
+  const noMocks = env as any; // access NO_MOCKS dynamically
+  if ((noMocks?.NO_MOCKS === '1') && !env.POSTGRES_DSN) {
+    throw new Error('NO_MOCKS=1: POSTGRES_DSN requis (interdit les mocks DB)');
+  }
   const pool = env.POSTGRES_DSN ? new pg.Pool({ connectionString: env.POSTGRES_DSN }) : null;
   return {
     async ping() {

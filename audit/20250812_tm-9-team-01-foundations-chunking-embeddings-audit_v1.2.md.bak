@@ -1,0 +1,80 @@
+---
+title: "Audit TM-9 — Chunking + Embeddings (768) — Clone strict"
+doc_kind: "audit"
+team: "team-01"
+team_name: "Foundations"
+tm_ids: ["9"]
+scope: "orchestrator/services/document.ts"
+status: "reviewed"
+version: "v1.2"
+author: "AI Auditor"
+related_files:
+  - "orchestrator/src/services/document.ts"
+  - "orchestrator/src/services/db.ts"
+  - "orchestrator/test/contract/chunking-overlap-dims.test.ts"
+  - "orchestrator/test/contract/chunking-overlap-metadata.test.ts"
+  - "orchestrator/test/contract/document-embeddings.test.ts"
+---
+
+#TEST: orchestrator/test/contract/chunking-overlap-dims.test.ts
+#TEST: orchestrator/test/contract/chunking-overlap-metadata.test.ts
+#TEST: orchestrator/test/contract/document-embeddings.test.ts
+
+## Contexte
+- Objectif clone strict: chunking par ~200 tokens avec overlap (~40), embeddings 768d, métadonnées `loc.lines`, upsert documents.
+- Cible: `orchestrator/src/services/document.ts` (chunking/embeddings) et `orchestrator/src/services/db.ts` (upsert).
+
+## Méthode
+- Lecture ciblée des services `document.ts` et `db.ts`.
+- Exécution locale de la suite de tests contrats (verts au moment de l’audit).
+- Analyse différentielle PRD/TECHNICAL_GUIDELINES.
+
+## Constats (v1.2)
+- Chunking:
+  - Découpe par « tokens » (mots) avec `targetTokens = 200`, `overlapTokens = 40`.
+  - `chunking-overlap-metadata.test.ts` valide le recouvrement (~40 tokens) et la présence de `metadata.loc.lines.from/to`.
+  - Calcul `loc.lines` par recherche de sous-chaîne (peut être ambigu sur textes à répétitions).
+- Embeddings:
+  - Calcul par chunk, concurrence limitée.
+  - Pas de validation stricte de dimension 768 avant upsert (les tests utilisent des stubs).
+- Upsert DB:
+  - Insertion ligne-à-ligne (pas de batch ni ON CONFLICT).
+- Tests:
+  - Overlap/dims (basique) + nouveau test overlap+metadata: présent et vert.
+  - Embeddings: dimension simulée (non 768), pas d’enforcement.
+
+## Écarts vs exigences
+- Reste à garantir contractuellement des embeddings 768d (fail/normalisation si != 768).
+- `loc.lines` repose sur `indexOf` → comportement non robuste avec répétitions (mais la présence et cohérence de champs est désormais testée).
+- Upsert non batché; potentielle différence de perf avec l’original.
+
+## Recommandations
+### SPEC
+- Énoncer la règle « embeddings = 768d obligatoires » + stratégie (fail/pad/truncate).
+- Documenter la règle d’overlap (40 tokens) et la méthode de tokenisation (approx whitespace) vs BPE.
+- Clarifier la sémantique d’upsert (append-only vs upsert by fingerprint) et la politique de batch.
+
+### IMPL
+- Ajouter une validation des dimensions (=768) avant upsert; sinon normaliser/paniquer avec message contractuel.
+- Envisager mini-batch embeddings/insert si supporté et conforme parité.
+- Améliorer `loc.lines` (p.ex. offsets caractères ou index tokens) pour robustesse sur répétitions.
+
+### TEST
+- « dims strictes 768 »: faire échouer si vecteurs != 768 (ou assert normalisation).
+- Cas répétitions: texte synthétique avec motifs répétés pour valider `loc.lines` cohérents.
+- (Optionnel) Tests sur batching si implémenté.
+
+## Preuves
+- Chunking/overlap/metadata: `document.ts` et `chunking-overlap-metadata.test.ts` (verts).
+- Overlap/dims de base: `chunking-overlap-dims.test.ts`.
+- Embeddings (stubs): `document-embeddings.test.ts` (pas d’enforcement 768 encore).
+- Upsert: `db.ts` (boucle inserts; pas de batch/ON CONFLICT).
+
+## Décision / État
+- Conformité améliorée vs v1.1 grâce au test overlap+metadata.
+- Écart principal restant: enforcement 768d (prioritaire) et robustesse `loc.lines` en présence de répétitions.
+
+## Plan de suivi (court terme)
+- Ajouter test « dims 768 strictes » + garde dans `document.ts`.
+- Étendre test `loc.lines` avec texte répétitif.
+- Évaluer batching (si parité/contrat le permettent); sinon documenter l’écart.

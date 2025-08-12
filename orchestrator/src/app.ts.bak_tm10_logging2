@@ -62,13 +62,6 @@ export function buildApp(deps?: Partial<AppDeps>): FastifyInstance {
   app.decorate('whisper', whisper);
 
   app.register(fp(async (instance: FastifyInstance) => {
-    function redactHeaders(h?: Record<string, any>) {
-      if (!h) return {} as Record<string, any>;
-      const r: Record<string, any> = { ...h };
-      if ('authorization' in r) r['authorization'] = '[REDACTED]';
-      if ('Authorization' in r) r['Authorization'] = '[REDACTED]';
-      return r;
-    }
     instance.addHook('preValidation', async (req: FastifyRequest, reply: FastifyReply) => {
       const url = (req as any).routeOptions?.url as string | undefined;
       if (!url || !url.startsWith('/webhook')) return;
@@ -76,10 +69,6 @@ export function buildApp(deps?: Partial<AppDeps>): FastifyInstance {
       if (!header || header !== env.NOTEBOOK_GENERATION_AUTH) {
         return reply.code(401).send({ code: 'UNAUTHORIZED', message: 'Invalid Authorization', correlation_id: req.id });
       }
-    });
-    instance.addHook('onResponse', async (req, _reply) => {
-      // Log structuré sans secrets
-      instance.log.info({ correlation_id: (req as any).id, route: (req as any).routerPath ?? (req as any).url, method: (req as any).method, headers: redactHeaders((req as any).headers) }, 'request complete');
     });
   }));
 
@@ -134,8 +123,6 @@ export function buildApp(deps?: Partial<AppDeps>): FastifyInstance {
 
   function requireFields(body: any, fields: string[]) { for (const f of fields) { if (!body[f]) throw Object.assign(new Error(`Missing ${f}`), { statusCode: 422 }); } }
 
-  app.addHook('onSend', async (req, reply, payload) => { reply.header('x-correlation-id', (req as any).id); return payload; });
-
   app.post('/webhook/chat', async (req: FastifyRequest, reply: FastifyReply) => {
     if (!(await ensureGpuAvailable())) {
       return reply.code(503).send({ code: 'GPU_REQUIRED', message: 'GPU enforcement active; device not available', correlation_id: (req as any).id });
@@ -146,13 +133,9 @@ export function buildApp(deps?: Partial<AppDeps>): FastifyInstance {
     if (typeof body.session_id === 'string' && typeof body.message === 'string' && body.message.length) { messages = [{ role: 'user', content: body.message }]; notebookId = body.session_id; }
     else { messages = Array.isArray(body.messages) ? body.messages : [{ role: 'user', content: body.message }].filter(Boolean); notebookId = body.notebookId ?? body.session_id; }
     if (env.OLLAMA_LLM_MODEL && messages.length) {
-      const t0 = Date.now();
-      app.log.info({ correlation_id: (req as any).id, event_code: 'RAG_START', route: '/webhook/chat' }, 'RAG start');
       let citations: any[] = []; try { const query = messages[messages.length - 1]?.content as string | undefined; if (query) citations = (await supabase.matchDocuments(query, notebookId)).slice(0, 5); } catch {}
       const chatRes = await ollama.chat(env.OLLAMA_LLM_MODEL, messages); const text = chatRes?.message?.content ?? '';
       try { const lastUser = messages[messages.length - 1]; if (lastUser?.role && lastUser?.content) await db.insertMessage(notebookId ?? null, lastUser.role, lastUser.content); if (text) await db.insertMessage(notebookId ?? null, 'assistant', text); } catch {}
-      const t1 = Date.now();
-      app.log.info({ correlation_id: (req as any).id, event_code: 'RAG_COMPLETE', route: '/webhook/chat', rag_duration_ms: t1 - t0 }, 'RAG complete');
       return reply.code(200).send({ success: true, data: { output: [{ text, citations }] } });
     }
     return reply.code(200).send({ success: true, data: { output: [] } });

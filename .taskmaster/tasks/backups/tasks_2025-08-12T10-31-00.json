@@ -135,7 +135,7 @@
       {
         "id": 9,
         "title": "Chunking + embeddings (768) + upsert documents",
-  "status": "review",
+        "status": "pending",
         "priority": "high",
         "dependencies": ["8"],
         "description": "[Clone strict] Respect metadata {notebook_id, source_id, loc.lines.from/to}; batch embeddings.",
@@ -143,7 +143,7 @@
           { "id": 2, "title": "SPEC: Règles chunking + métadonnées", "status": "pending" },
           { "id": 3, "title": "IMPL: Chunker tokens~200 + overlap + batch embeddings 768d", "status": "in-progress" },
           { "id": 4, "title": "TEST: Dims, overlap, idempotence", "status": "in-progress" },
-          { "id": 5, "title": "AUDIT: Parité indexation/metadata", "status": "review" },
+          { "id": 5, "title": "AUDIT: Parité indexation/metadata", "status": "pending" },
           { "id": 1, "title": "Unit tests (metadata + dims)", "status": "pending" }
         ]
       },
@@ -156,10 +156,10 @@
         "description": "[Clone strict] Step logs; actionable errors; no new schemas.",
         "subtasks": [
           { "id": 2, "title": "SPEC: Format logs + modèle d’erreurs", "status": "review" },
-          { "id": 3, "title": "IMPL: Logs corrélés (correlation_id) + gestion erreurs (ErrorResponse)", "status": "done" },
+          { "id": 3, "title": "IMPL: Logs corrélés (correlation_id) + gestion erreurs (ErrorResponse)", "status": "in-progress" },
           { "id": 8, "title": "IMPL: Injecter correlation_id dans tous les logs applicatifs (hooks) + events chat/audio", "status": "pending" },
           { "id": 9, "title": "IMPL: Évènements étape RAG/TTS/UPLOAD/CALLBACK + métriques latences", "status": "pending" },
-          { "id": 4, "title": "TEST: Assertions logs + erreurs", "status": "done" },
+          { "id": 4, "title": "TEST: Assertions logs + erreurs", "status": "pending" },
           { "id": 5, "title": "AUDIT: Parité niveau/logs", "status": "review" },
           { "id": 6, "title": "IMPL: Redaction secrets + sampling", "status": "pending" },
           { "id": 10, "title": "TEST: Redaction — pas de header Authorization ni secrets en logs", "status": "pending" },
@@ -237,7 +237,7 @@
           { "id": 1, "title": "SPEC: Schéma stockage + sémantique (Idempotency-Key)", "status": "review" },
           { "id": 2, "title": "IMPL: Middleware/DAO idempotence (process-document, additional-sources, generate-audio)", "status": "done" },
           { "id": 3, "title": "TEST: Replays sans doublons DB (Idempotency-Key)", "status": "done" },
-             { "id": 4, "title": "AUDIT: Parité idempotence (ingestion)", "status": "done" }
+             { "id": 4, "title": "AUDIT: Parité idempotence (ingestion)", "status": "review" }
         ]
       },
       {
@@ -301,7 +301,7 @@
     ],
     "metadata": {
       "created": "2025-08-11T13:58:41.290Z",
-  "updated": "2025-08-12T11:36:00.000Z",
+    "updated": "2025-08-12T10:31:00.000Z",
       "description": "Tasks for master context (clone parity, no MVP)"
     }
   }

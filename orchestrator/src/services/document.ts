@@ -31,6 +31,8 @@ export function createDocumentProcessor(env: Env, deps?: {
     if (tokens.length === 0) return [];
     const chunks: Array<{ text: string; from: number; to: number }> = [];
     let start = 0;
+    // Maintain a forward search offset to disambiguate repeated slices
+    let searchFrom = 0;
     while (start < tokens.length) {
       const end = Math.min(tokens.length, start + targetTokens);
       const slice = tokens.slice(start, end).join(' ');
@@ -39,12 +41,16 @@ export function createDocumentProcessor(env: Env, deps?: {
       let acc = 0;
       for (const l of lines) { acc += l.length + 1; cumulative.push(acc); }
       const globalText = text;
-      const pos = globalText.indexOf(slice);
+      // Prefer a forward search starting at the last matched end to cope with repeats
+      let pos = globalText.indexOf(slice, searchFrom);
+      if (pos < 0) pos = globalText.indexOf(slice);
       let fromLine = 1, toLine = lines.length;
       if (pos >= 0) {
         for (let i = 0; i < cumulative.length; i++) { if (cumulative[i] >= pos + 1) { fromLine = i + 1; break; } }
         const posEnd = pos + slice.length;
         for (let i = 0; i < cumulative.length; i++) { if (cumulative[i] >= posEnd) { toLine = i + 1; break; } }
+        // Advance search offset for the next chunk to ensure monotonic mapping
+        searchFrom = Math.max(searchFrom, posEnd);
       }
       chunks.push({ text: slice, from: fromLine, to: toLine });
       if (end === tokens.length) break;

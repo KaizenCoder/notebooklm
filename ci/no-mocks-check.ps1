@@ -12,7 +12,7 @@ $env:NOTEBOOK_GENERATION_AUTH=$NotebookAuth
 $env:OLLAMA_EMBED_MODEL=$EmbedModel
 
 # Exécuter un E2E minimal qui traverse les webhooks (chat-edge)
-pushd orchestrator
+pushd ..\orchestrator
 try {
   npm run -s build | Out-Null
   npm run -s test:e2e | Out-Null

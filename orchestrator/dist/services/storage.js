@@ -21,9 +21,12 @@ export function createStorage(env) {
             });
             if (res.statusCode >= 400)
                 throw new Error(`Storage PUT failed: ${res.statusCode}`);
-            // Assuming the storage service returns the URL in a Location header or similar
-            // For now, we'll construct it based on the base URL and path
             return `${base}/${path}`;
+        },
+        async uploadText(text, path) {
+            const encoder = new TextEncoder();
+            const bin = encoder.encode(text);
+            return this.upload(bin, path);
         }
     };
 }

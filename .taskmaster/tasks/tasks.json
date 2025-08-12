@@ -382,7 +382,7 @@
       {
         "id": 10,
         "title": "Logging & errors (align original)",
-        "status": "in-progress",
+        "status": "done",
         "priority": "medium",
         "dependencies": [],
         "description": "[Clone strict] Step logs; actionable errors; no new schemas.",
@@ -400,12 +400,12 @@
           {
             "id": 8,
             "title": "IMPL: Injecter correlation_id dans tous les logs applicatifs (hooks) + events chat/audio",
-            "status": "in-progress"
+            "status": "done"
           },
           {
             "id": 9,
             "title": "IMPL: Évènements étape RAG/TTS/UPLOAD/CALLBACK + métriques latences",
-            "status": "in-progress"
+            "status": "done"
           },
           {
             "id": 4,
@@ -780,7 +780,7 @@
     ],
     "metadata": {
       "created": "2025-08-11T13:58:41.290Z",
-      "updated": "2025-08-12T08:25:30.127Z",
+      "updated": "2025-08-12T12:48:00.000Z",
       "description": "Tasks for master context (clone parity, no MVP)"
     }
   }

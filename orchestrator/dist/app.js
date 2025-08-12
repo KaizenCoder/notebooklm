@@ -70,7 +70,6 @@ export function buildApp(deps) {
             }
         });
         instance.addHook('onResponse', async (req, _reply) => {
-            // Log structuré sans secrets
             instance.log.info({ correlation_id: req.id, route: req.routerPath ?? req.url, method: req.method, headers: redactHeaders(req.headers) }, 'request complete');
         });
     }));
@@ -81,7 +80,6 @@ export function buildApp(deps) {
     app.get('/ready', async (req, reply) => {
         const details = {};
         let ok = true;
-        // DB check
         try {
             await db.ping();
             details.db = 'ok';
@@ -90,7 +88,6 @@ export function buildApp(deps) {
             details.db = { error: String(e) };
             ok = false;
         }
-        // Ollama check
         try {
             const tags = await ollama.listModels();
             details.ollama = 'ok';
@@ -117,23 +114,21 @@ export function buildApp(deps) {
             details.ollama = { error: String(e) };
             ok = false;
         }
-        // Whisper check
         if (env.WHISPER_ASR_URL) {
             try {
                 await whisper.transcribe('http://example.com/dummy.wav');
                 details.whisper = 'ok';
-            } // Use a dummy URL for probe
+            }
             catch (e) {
                 details.whisper = { error: String(e) };
                 ok = false;
             }
         }
-        // Coqui TTS check
         if (env.COQUI_TTS_URL) {
             try {
                 await audio.synthesize('dummy text');
                 details.coqui = 'ok';
-            } // Use dummy text for probe
+            }
             catch (e) {
                 details.coqui = { error: String(e) };
                 ok = false;
@@ -184,8 +179,10 @@ export function buildApp(deps) {
                 }
             }
             catch { }
+            const tGen0 = Date.now();
             const chatRes = await ollama.chat(env.OLLAMA_LLM_MODEL, messages);
             const text = chatRes?.message?.content ?? '';
+            const tGen1 = Date.now();
             try {
                 const lastUser = messages[messages.length - 1];
                 if (lastUser?.role && lastUser?.content)
@@ -197,7 +194,7 @@ export function buildApp(deps) {
             const t1 = Date.now();
             const rag_total_ms = t1 - t0;
             const match_ms = tMatchStart && tMatchEnd ? (tMatchEnd - tMatchStart) : null;
-            app.log.info({ correlation_id: req.id, event_code: 'RAG_COMPLETE', route: '/webhook/chat', rag_duration_ms: rag_total_ms, match_documents_ms: match_ms }, 'RAG complete');
+            app.log.info({ correlation_id: req.id, event_code: 'RAG_COMPLETE', route: '/webhook/chat', rag_duration_ms: rag_total_ms, match_documents_ms: match_ms, llm_generate_ms: tGen1 - tGen0 }, 'RAG complete');
             return reply.code(200).send({ success: true, data: { output: [{ text, citations }] } });
         }
         return reply.code(200).send({ success: true, data: { output: [] } });
@@ -278,6 +275,10 @@ export function buildApp(deps) {
         if (body.type === 'copied-text') {
             try {
                 requireFields(body, ['notebookId', 'content', 'sourceId']);
+                try {
+                    await app.storage.uploadText(String(body.content ?? ''), `sources/${body.notebookId}/${body.sourceId}.txt`);
+                }
+                catch { }
                 await app.docProc.processDocument({ notebookId: body.notebookId, sourceId: body.sourceId, text: body.content, sourceType: 'txt', correlationId: req.correlationId });
                 const res = { success: true, message: 'copied-text data sent to webhook successfully', webhookResponse: 'OK' };
                 if (idemKey)
@@ -298,7 +299,16 @@ export function buildApp(deps) {
                 const sourceIds = b.sourceIds ?? [];
                 for (let i = 0; i < urls.length; i++) {
                     const sid = sourceIds[i] ?? sourceIds[0];
-                    await app.docProc.processDocument({ notebookId: body.notebookId, sourceId: sid, sourceType: 'txt', fileUrl: urls[i], correlationId: req.correlationId });
+                    let websiteText = '';
+                    try {
+                        websiteText = await app.storage.fetchText(urls[i]);
+                    }
+                    catch { }
+                    try {
+                        await app.storage.uploadText(String(websiteText ?? ''), `sources/${body.notebookId}/${sid}.txt`);
+                    }
+                    catch { }
+                    await app.docProc.processDocument({ notebookId: body.notebookId, sourceId: sid, sourceType: 'txt', text: websiteText || undefined, fileUrl: websiteText ? undefined : urls[i], correlationId: req.correlationId });
                 }
                 const res = { success: true, message: 'multiple-websites data sent to webhook successfully', webhookResponse: 'OK' };
                 if (idemKey)
@@ -347,11 +357,26 @@ export function buildApp(deps) {
                 await db.updateNotebookStatus(notebookId, 'generating');
         }
         catch { }
+        const corr = req.id;
+        const route = '/webhook/generate-audio';
         jobs.add('generate-audio', async () => {
             try {
+                const t0 = Date.now();
+                app.log.info({ correlation_id: corr, event_code: 'TTS_START', route }, 'TTS start');
                 const bin = await app.audio.synthesize('overview text');
+                const t1 = Date.now();
+                app.log.info({ correlation_id: corr, event_code: 'TTS_COMPLETE', route, tts_duration_ms: t1 - t0 }, 'TTS complete');
                 const path = `audio/${notebookId ?? 'unknown'}.mp3`;
+                const tUp0 = Date.now();
+                app.log.info({ correlation_id: corr, event_code: 'UPLOAD_START', route, path }, 'Upload start');
                 const audioUrl = await app.storage.upload(bin, path);
+                const tUp1 = Date.now();
+                let host;
+                try {
+                    host = new URL(String(audioUrl)).host;
+                }
+                catch { }
+                app.log.info({ correlation_id: corr, event_code: 'UPLOAD_COMPLETE', route, upload_duration_ms: tUp1 - tUp0, audio_url_host: host }, 'Upload complete');
                 if (db.setNotebookAudio && notebookId)
                     await db.setNotebookAudio(notebookId, audioUrl);
                 if (db.updateNotebookStatus && notebookId)
@@ -360,6 +385,12 @@ export function buildApp(deps) {
                     for (let i = 0; i < 2; i++) {
                         try {
                             await undiciRequest(callbackUrl, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ notebook_id: notebookId, audio_url: audioUrl, status: 'success' }) });
+                            app.log.info({ correlation_id: corr, event_code: 'CALLBACK_SENT', route, callback_host: (() => { try {
+                                    return new URL(String(callbackUrl)).host;
+                                }
+                                catch {
+                                    return undefined;
+                                } })() }, 'Callback sent');
                             break;
                         }
                         catch { }
@@ -375,6 +406,12 @@ export function buildApp(deps) {
                 if (callbackUrl) {
                     try {
                         await undiciRequest(callbackUrl, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ notebook_id: notebookId, status: 'failed' }) });
+                        app.log.info({ correlation_id: corr, event_code: 'CALLBACK_SENT', route, callback_host: (() => { try {
+                                return new URL(String(callbackUrl)).host;
+                            }
+                            catch {
+                                return undefined;
+                            } })() }, 'Callback sent');
                     }
                     catch { }
                 }
@@ -390,7 +427,6 @@ export function buildApp(deps) {
 export async function performBootChecks(app) {
     const { env, db, ollama, whisper, audio } = app;
     app.log.info('Performing boot checks...');
-    // DB check
     try {
         await db.ping();
         app.log.info('DB connection: OK');
@@ -399,7 +435,6 @@ export async function performBootChecks(app) {
         app.log.error({ err: e }, 'DB connection: FAILED');
         throw new Error('DB connection failed');
     }
-    // Ollama check
     try {
         const tags = await ollama.listModels();
         app.log.info('Ollama connection: OK');
@@ -428,10 +463,9 @@ export async function performBootChecks(app) {
         app.log.error({ err: e }, 'Ollama connection: FAILED');
         throw new Error('Ollama connection failed');
     }
-    // Whisper check
     if (env.WHISPER_ASR_URL) {
         try {
-            await whisper.transcribe('http://example.com/dummy.wav'); // Use a dummy URL for probe
+            await whisper.transcribe('http://example.com/dummy.wav');
             app.log.info('Whisper ASR connection: OK');
         }
         catch (e) {
@@ -439,10 +473,9 @@ export async function performBootChecks(app) {
             throw new Error('Whisper ASR connection failed');
         }
     }
-    // Coqui TTS check
     if (env.COQUI_TTS_URL) {
         try {
-            await audio.synthesize('dummy text'); // Use dummy text for probe
+            await audio.synthesize('dummy text');
             app.log.info('Coqui TTS connection: OK');
         }
         catch (e) {

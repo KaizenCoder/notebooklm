@@ -22,7 +22,6 @@ Modèle d’entrée (copier/coller)
 
 Index (résumé des entrées)
 - [x] TM-19/2.7/3.6/4.6 — Demande de généralisation: Idempotency-Key, modèle d’erreur, correlation_id, chunking tokens + embeddings 768
-- [x] TM-12.3 — Hook pre‑push NO_MOCKS: standardisation Windows PowerShell + fallback Bash/WSL
 
 Historique détaillé
 - [x] ID(s) Task‑Master: TM-19/2.7/3.6/4.6
@@ -44,20 +43,3 @@ Historique détaillé
     - Code orchestrator (middlewares idempotence/logs; handlers validation/erreurs); tests (contrats/idempotence); doc specs (OpenAPI) et checklists.
   - Actions de suivi:
     - Tâches Task‑Master: 15 (idempotence), 9 (chunking/embeddings), 10 (logging/errors), MAJ specs (2/3/4), et clôture 19.
-
-- [x] ID(s) Task‑Master: TM-12.3
-  - Date/Heure: 2025-08-12 10:35
-  - Sujet: Standardiser le hook `pre-push` NO_MOCKS sous Windows (PowerShell) + wrapper `.cmd`, et option Bash/WSL
-  - Type: Technique
-  - Contexte:
-    - Réfs internes: `docs/TECHNICAL_GUIDELINES.md#7-hook-git-pre-push-no_mocks-local`, `ci/no-mocks-check.ps1`, `scripts/git-hooks/pre-push.ps1`
-  - Décision:
-    - Installer par défaut côté Windows: `.git/hooks/pre-push.ps1` + `.git/hooks/pre-push.cmd` appelant `ci/no-mocks-check.ps1`.
-    - Documenter un `pre-push` (sans extension) shebang pwsh pour environnements Git Bash/WSL.
-    - Interdire le bypass en CI; autoriser localement `--no-verify` uniquement en cas d’urgence outillage.
-  - Justification:
-    - Evite les échecs silencieux selon le shell, aligne la règle No‑Mocks First.
-  - Impact:
-    - Bloque les pushs si l’environnement réel local n’est pas prêt; homogénéise dev Windows.
-  - Actions de suivi:
-    - Vérifier `pwsh` présent, exécution: `pwsh -NoProfile -ExecutionPolicy Bypass -File .git/hooks/pre-push.ps1`.

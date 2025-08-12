@@ -57,32 +57,6 @@ Pour garantir la parité et la qualité, les conventions suivantes sont à respe
 - **Traçabilité :** Chaque requête reçue par l'API doit se voir assigner un `correlation_id` unique, qui doit être présent dans tous les logs relatifs à cette requête. Cela permet de suivre le parcours complet d'une opération.
 - **Métriques de Latence :** Le temps de traitement des étapes clés (ex: `extract_duration`, `embed_duration`, `rag_duration`) doit être journalisé pour identifier les goulots d'étranglement.
 
-## 7. Hook Git pre-push NO_MOCKS (Local)
-
-Objectif
-- Empêcher les `git push` lorsque l'environnement local n'est pas prêt pour une exécution réelle (mode `NO_MOCKS=1`).
-
-Comportement
-- Le hook lance `ci/no-mocks-check.ps1` qui:
-  - Exporte `NO_MOCKS=1`, `GPU_ONLY=1`, `NOTEBOOK_GENERATION_AUTH`, `OLLAMA_EMBED_MODEL`.
-  - Exécute un E2E minimal orchestrator (`npm run build && npm run test:e2e`).
-  - Échoue si DB/Ollama/Whisper/Storage ne sont pas accessibles.
-
-Installation Windows (PowerShell)
-- Le repo fournit `scripts/git-hooks/pre-push.ps1` et j'installe dans `.git/hooks/`:
-  - `pre-push.ps1` appelant `ci/no-mocks-check.ps1`.
-  - `pre-push.cmd` wrapper pour lancer `pwsh`.
-- Pré‑requis: PowerShell 7 (`pwsh`), `Set-ExecutionPolicy -Scope Process Bypass` si nécessaire.
-
-Git Bash/WSL
-- Optionnel: un `pre-push` shebang `#!/usr/bin/env pwsh` peut relayer vers le `.ps1`.
-
-Débrayage local (exceptionnel)
-- `git push --no-verify` (interdit en CI). En CI, le contrôle est reproduit.
-
-#TEST: ci/no-mocks-check.ps1
-#TEST: .git/hooks/pre-push.ps1
-
 ## Références Claims & Audits
 
 - Voir `docs/DOCUMENTATION_PROJET.md` — section "Claims & Audits (processus et conventions)".
@@ -99,3 +73,5 @@ Débrayage local (exceptionnel)
   - Inclure la section `## Limitations` dans chaque document
 - Validation automatique:
   - `node scripts/validate-claims-audit.mjs` — à lancer avant commit/PR
+
+#TEST: docs/spec/README.md

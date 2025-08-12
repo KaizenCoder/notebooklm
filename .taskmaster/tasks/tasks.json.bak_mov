@@ -23,7 +23,7 @@
                                                       },
                                                       {
                                                           "id":  6,
-                                                          "title":  "TEST: Contrat HTTP + intégration (mocks)",
+                                                          "title":  ���TEST: Contrat HTTP + intégration (mocks)",
                                                           "status":  "done"
                                                       },
                                                       {
@@ -452,7 +452,7 @@
                                                       {
                                                           "id":  13,
                                                           "title":  "IMPL: Évènements EXTRACT/EMBED/UPSERT pour process-document",
-                                                          "status":  "in-progress"
+                                                          "status":  "done"
                                                       },
                                                       {
                                                           "id":  7,
@@ -622,7 +622,7 @@
                                  {
                                      "id":  15,
                                      "title":  "Idempotency-Key layer (ingestion ops)",
-                                     "status":  "review",
+                                     "status":  "done",
                                      "priority":  "high",
                                      "dependencies":  [
 
@@ -632,12 +632,12 @@
                                                       {
                                                           "id":  1,
                                                           "title":  "SPEC: Schéma stockage + sémantique (Idempotency-Key)",
-                                                          "status":  "review"
+                                                          "status":  "done"
                                                       },
                                                       {
                                                           "id":  2,
                                                           "title":  "IMPL: Middleware/DAO idempotence (process-document, additional-sources, generate-audio)",
-                                                          "status":  "review"
+                                                          "status":  "done"
                                                       },
                                                       {
                                                           "id":  3,
@@ -798,8 +798,8 @@
                              ],
                    "metadata":  {
                                     "created":  "2025-08-11T13:58:41.29Z",
-                                    "updated":  "2025-08-12T11:25:00Z",
-                                    "description":  "Tasks for master context (clone parity, no MVP)"
+                                    "updated":  "2025-08-12T13:25:00Z",
+                                    "description":  "Tasks for master context (clone parity, MOV scope)"
                                 }
                }
 }

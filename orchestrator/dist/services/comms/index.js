@@ -11,7 +11,7 @@ const MessageSchema = z.object({
     status: z.string().min(1),
     severity: z.enum(['INFO', 'WARN', 'CRITICAL']).optional(),
     timestamp: z.string().min(1),
-    correlation_id: z.string().min(8),
+    correlation_id: z.string().min(1),
     details: z.string().max(1500).optional(),
     links: z.array(z.string().url()).max(10).optional(),
     test_refs: z.array(z.string()).max(10).optional(),

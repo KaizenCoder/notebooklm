@@ -241,10 +241,10 @@ export function buildApp(deps) {
                 details: 'Process document started'
             }).catch(() => { });
         }
-        await app.docProc.processDocument({ notebookId: body.notebook_id, sourceId: body.source_id, text: body.text, sourceType: body.source_type, fileUrl: body.file_url, correlationId: req.correlationId });
+        await app.docProc.processDocument({ notebookId: body.notebook_id, sourceId: body.source_id, text: body.text, sourceType: body.source_type, fileUrl: body.file_url, correlationId: req.id });
         app.jobs.add('process-document', async () => {
             try {
-                await app.docProc.processDocument({ notebookId: body.notebook_id, sourceId: body.source_id, text: body.text, sourceType: body.source_type, fileUrl: body.file_url, correlationId: req.correlationId });
+                await app.docProc.processDocument({ notebookId: body.notebook_id, sourceId: body.source_id, text: body.text, sourceType: body.source_type, fileUrl: body.file_url, correlationId: req.id });
                 if (body.callback_url) {
                     try {
                         await undiciRequest(body.callback_url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ source_id: body.source_id, status: 'completed' }) });
@@ -341,7 +341,7 @@ export function buildApp(deps) {
                     await app.storage.uploadText(String(body.content ?? ''), `sources/${body.notebookId}/${body.sourceId}.txt`);
                 }
                 catch { }
-                await app.docProc.processDocument({ notebookId: body.notebookId, sourceId: body.sourceId, text: body.content, sourceType: 'txt', correlationId: req.correlationId });
+                await app.docProc.processDocument({ notebookId: body.notebookId, sourceId: body.sourceId, text: body.content, sourceType: 'txt', correlationId: req.id });
                 const res = { success: true, message: 'copied-text data sent to webhook successfully', webhookResponse: 'OK' };
                 if (idemKey)
                     idem.complete(idemKey, { statusCode: 200, body: res });
@@ -388,7 +388,7 @@ export function buildApp(deps) {
                         await app.storage.uploadText(String(websiteText ?? ''), `sources/${body.notebookId}/${sid}.txt`);
                     }
                     catch { }
-                    await app.docProc.processDocument({ notebookId: body.notebookId, sourceId: sid, sourceType: 'txt', text: websiteText || undefined, fileUrl: websiteText ? undefined : urls[i], correlationId: req.correlationId });
+                    await app.docProc.processDocument({ notebookId: body.notebookId, sourceId: sid, sourceType: 'txt', text: websiteText || undefined, fileUrl: websiteText ? undefined : urls[i], correlationId: req.id });
                 }
                 const res = { success: true, message: 'multiple-websites data sent to webhook successfully', webhookResponse: 'OK' };
                 if (idemKey)

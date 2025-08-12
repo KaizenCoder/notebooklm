@@ -55,6 +55,10 @@ Exécution locale MOV (contrats + intégration + e2e) réussie:
 - Anti‑mock scan: OK (aucun motif suspect en runtime)
 - No‑mocks E2E: OK
 
+## Claims liés (MOV)
+- `claims/20250812_tm-15.2+15.3+19.2-team-01-foundations-mov-claim_v1.0.md`
+- `claims/20250812_tm-19.3-team-01-foundations-additional-sources-mov-claim_v1.0.md`
+
 ## Idempotency
 - Entête `Idempotency-Key` supporté sur `process-document` et `process-additional-sources`.
 - TTL configurable via `IDEMPOTENCY_TTL_MS`.

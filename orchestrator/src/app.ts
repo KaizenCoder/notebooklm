@@ -138,6 +138,9 @@ export function buildApp(deps?: Partial<AppDeps>): FastifyInstance {
 
   app.addHook('onSend', async (req, reply, payload) => { reply.header('x-correlation-id', (req as any).id); return payload; });
 
+  // Helper to know if orchestrator is allowed to emit
+  function canEmit() { return String((env as any).COMMS_ORCHESTRATOR_EMIT || '') === '1' && !!comms; }
+
   app.post('/webhook/chat', async (req: FastifyRequest, reply: FastifyReply) => {
     if (!(await ensureGpuAvailable())) {
       return reply.code(503).send({ code: 'GPU_REQUIRED', message: 'GPU enforcement active; device not available', correlation_id: (req as any).id });
@@ -188,70 +191,37 @@ export function buildApp(deps?: Partial<AppDeps>): FastifyInstance {
     }
 
     const idemKey = (req.headers['idempotency-key'] as string|undefined)?.trim();
-    if (idemKey) { const cached = idem.get(idemKey); if (cached) return reply.code(cached.statusCode).send(cached.body); idem.begin(idemKey); }
+    if (idemKey) { const cached = idem.get(idemKey); if (cached) return reply.code(cached.statusCode).send(cached.body); const started = idem.begin(idemKey); if (!started) { const again = idem.get(idemKey); if (again) return reply.code(again.statusCode).send(again.body); return reply.code(202).send({ success: true, message: 'Document processing initiated' }); } }
 
-    // heartbeat START
-    if (comms) {
-      await comms.publishHeartbeat({
-        from_agent: 'orchestrator',
-        team: 'orange',
-        role: 'impl',
-        tm_ids: ['process-document'],
-        task_id: String(body.source_id ?? ''),
-        event: 'PROCESS_DOCUMENT',
-        status: 'START',
-        severity: 'INFO',
-        timestamp: new Date().toISOString(),
-        correlation_id: (req as any).id,
-        details: 'Process document started'
+    if (canEmit()) {
+      await (comms as any).publishHeartbeat({
+        from_agent: 'orchestrator', team: 'orange', role: 'impl', tm_ids: ['process-document'], task_id: String(body.source_id ?? ''), event: 'PROCESS_DOCUMENT', status: 'START', severity: 'INFO', timestamp: new Date().toISOString(), correlation_id: (req as any).id, details: 'Process document started'
       }).catch(() => {});
     }
 
-    await app.docProc.processDocument({ notebookId: body.notebook_id, sourceId: body.source_id, text: body.text, sourceType: body.source_type, fileUrl: body.file_url, correlationId: (req as any).correlationId });
+    await app.docProc.processDocument({ notebookId: body.notebook_id, sourceId: body.source_id, text: body.text, sourceType: body.source_type, fileUrl: body.file_url, correlationId: (req as any).id });
 
     app.jobs.add('process-document', async () => {
       try {
-        await app.docProc.processDocument({ notebookId: body.notebook_id, sourceId: body.source_id, text: body.text, sourceType: body.source_type, fileUrl: body.file_url, correlationId: (req as any).correlationId });
+        await app.docProc.processDocument({ notebookId: body.notebook_id, sourceId: body.source_id, text: body.text, sourceType: body.source_type, fileUrl: body.file_url, correlationId: (req as any).id });
         if (body.callback_url) {
           try {
             await undiciRequest(body.callback_url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ source_id: body.source_id, status: 'completed' }) });
             app.log.info({ correlation_id: (req as any).id, event_code: 'CALLBACK_SENT', route: '/webhook/process-document', callback_host: (() => { try { return new URL(String(body.callback_url)).host; } catch { return undefined; } })() }, 'Callback sent');
           } catch {}
         }
-        // heartbeat DONE
-        if (comms) {
-          await comms.publishHeartbeat({
-            from_agent: 'orchestrator',
-            team: 'orange',
-            role: 'impl',
-            tm_ids: ['process-document'],
-            task_id: String(body.source_id ?? ''),
-            event: 'PROCESS_DOCUMENT',
-            status: 'DONE',
-            severity: 'INFO',
-            timestamp: new Date().toISOString(),
-            correlation_id: (req as any).id,
-            details: 'Process document completed'
+        if (canEmit()) {
+          await (comms as any).publishHeartbeat({
+            from_agent: 'orchestrator', team: 'orange', role: 'impl', tm_ids: ['process-document'], task_id: String(body.source_id ?? ''), event: 'PROCESS_DOCUMENT', status: 'DONE', severity: 'INFO', timestamp: new Date().toISOString(), correlation_id: (req as any).id, details: 'Process document completed'
           }).catch(() => {});
         }
       }
       catch (e) {
         try { if ((app.db as any).updateSourceStatus && body.source_id) await (app.db as any).updateSourceStatus(body.source_id, 'failed'); } catch {}
         if (body.callback_url) { try { await undiciRequest(body.callback_url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ source_id: body.source_id, status: 'failed' }) }); app.log.info({ correlation_id: (req as any).id, event_code: 'CALLBACK_SENT', route: '/webhook/process-document', callback_host: (() => { try { return new URL(String(body.callback_url)).host; } catch { return undefined; } })() }, 'Callback sent'); } catch {} }
-        // blocker CRITICAL
-        if (comms) {
-          await comms.publishBlocker({
-            from_agent: 'orchestrator',
-            team: 'orange',
-            role: 'impl',
-            tm_ids: ['process-document'],
-            task_id: String(body.source_id ?? ''),
-            event: 'PROCESS_DOCUMENT',
-            status: 'FAILED',
-            severity: 'CRITICAL',
-            timestamp: new Date().toISOString(),
-            correlation_id: (req as any).id,
-            details: 'Process document failed'
+        if (canEmit()) {
+          await (comms as any).publishBlocker({
+            from_agent: 'orchestrator', team: 'orange', role: 'impl', tm_ids: ['process-document'], task_id: String(body.source_id ?? ''), event: 'PROCESS_DOCUMENT', status: 'FAILED', severity: 'CRITICAL', timestamp: new Date().toISOString(), correlation_id: (req as any).id, details: 'Process document failed'
           }).catch(() => {});
         }
       }
@@ -270,47 +240,35 @@ export function buildApp(deps?: Partial<AppDeps>): FastifyInstance {
     const body = { ...b, sourceId: b.sourceId ?? (Array.isArray(b.sourceIds)? b.sourceIds[0]: undefined) };
 
     const idemKey = (req.headers['idempotency-key'] as string|undefined)?.trim();
-    if (idemKey) { const cached = idem.get(idemKey); if (cached) return reply.code(cached.statusCode).send(cached.body); idem.begin(idemKey); }
+    if (idemKey) { const cached = idem.get(idemKey); if (cached) return reply.code(cached.statusCode).send(cached.body); const started = idem.begin(idemKey); if (!started) { const again = idem.get(idemKey); if (again) return reply.code(again.statusCode).send(again.body); return reply.code(200).send({ success: true, message: 'Processed additional sources', webhookResponse: {} }); } }
 
     if (body.type === 'copied-text') {
       try {
-        // heartbeat START
-        if (comms) {
-          await comms.publishHeartbeat({
-            from_agent: 'orchestrator', team: 'orange', role: 'impl', tm_ids: ['process-additional-sources'], task_id: String(body.sourceId ?? ''), event: 'PROCESS_ADDITIONAL_SOURCES', status: 'START', severity: 'INFO', timestamp: new Date().toISOString(), correlation_id: (req as any).id, details: 'copied-text start'
-          }).catch(() => {});
+        if (canEmit()) {
+          await (comms as any).publishHeartbeat({ from_agent: 'orchestrator', team: 'orange', role: 'impl', tm_ids: ['process-additional-sources'], task_id: String(body.sourceId ?? ''), event: 'PROCESS_ADDITIONAL_SOURCES', status: 'START', severity: 'INFO', timestamp: new Date().toISOString(), correlation_id: (req as any).id, details: 'copied-text start' }).catch(() => {});
         }
         requireFields(body, ['notebookId','content','sourceId']);
         try { await (app as any).storage.uploadText(String(body.content ?? ''), `sources/${body.notebookId}/${body.sourceId}.txt`); } catch {}
-        await app.docProc.processDocument({ notebookId: body.notebookId, sourceId: body.sourceId, text: body.content, sourceType: 'txt', correlationId: (req as any).correlationId });
+        await app.docProc.processDocument({ notebookId: body.notebookId, sourceId: body.sourceId, text: body.content, sourceType: 'txt', correlationId: (req as any).id });
         const res = { success: true, message: 'copied-text data sent to webhook successfully', webhookResponse: 'OK' };
         if (idemKey) idem.complete(idemKey, { statusCode: 200, body: res });
-        // heartbeat DONE
-        if (comms) {
-          await comms.publishHeartbeat({
-            from_agent: 'orchestrator', team: 'orange', role: 'impl', tm_ids: ['process-additional-sources'], task_id: String(body.sourceId ?? ''), event: 'PROCESS_ADDITIONAL_SOURCES', status: 'DONE', severity: 'INFO', timestamp: new Date().toISOString(), correlation_id: (req as any).id, details: 'copied-text done'
-          }).catch(() => {});
+        if (canEmit()) {
+          await (comms as any).publishHeartbeat({ from_agent: 'orchestrator', team: 'orange', role: 'impl', tm_ids: ['process-additional-sources'], task_id: String(body.sourceId ?? ''), event: 'PROCESS_ADDITIONAL_SOURCES', status: 'DONE', severity: 'INFO', timestamp: new Date().toISOString(), correlation_id: (req as any).id, details: 'copied-text done' }).catch(() => {});
         }
         return reply.code(200).send(res);
       } catch (e) {
         const res = { code: 'UNPROCESSABLE_ENTITY', message: 'Invalid copied-text payload' };
         if (idemKey) idem.complete(idemKey, { statusCode: 422, body: res });
-        // blocker
-        if (comms) {
-          await comms.publishBlocker({
-            from_agent: 'orchestrator', team: 'orange', role: 'impl', tm_ids: ['process-additional-sources'], task_id: String(body.sourceId ?? ''), event: 'PROCESS_ADDITIONAL_SOURCES', status: 'FAILED', severity: 'CRITICAL', timestamp: new Date().toISOString(), correlation_id: (req as any).id, details: 'copied-text failed'
-          }).catch(() => {});
+        if (canEmit()) {
+          await (comms as any).publishBlocker({ from_agent: 'orchestrator', team: 'orange', role: 'impl', tm_ids: ['process-additional-sources'], task_id: String(body.sourceId ?? ''), event: 'PROCESS_ADDITIONAL_SOURCES', status: 'FAILED', severity: 'CRITICAL', timestamp: new Date().toISOString(), correlation_id: (req as any).id, details: 'copied-text failed' }).catch(() => {});
         }
         return reply.code(422).send(res);
       }
     }
     if (body.type === 'multiple-websites') {
       try {
-        // heartbeat START
-        if (comms) {
-          await comms.publishHeartbeat({
-            from_agent: 'orchestrator', team: 'orange', role: 'impl', tm_ids: ['process-additional-sources'], task_id: String(body.sourceId ?? ''), event: 'PROCESS_ADDITIONAL_SOURCES', status: 'START', severity: 'INFO', timestamp: new Date().toISOString(), correlation_id: (req as any).id, details: 'multiple-websites start'
-          }).catch(() => {});
+        if (canEmit()) {
+          await (comms as any).publishHeartbeat({ from_agent: 'orchestrator', team: 'orange', role: 'impl', tm_ids: ['process-additional-sources'], task_id: String(body.sourceId ?? ''), event: 'PROCESS_ADDITIONAL_SOURCES', status: 'START', severity: 'INFO', timestamp: new Date().toISOString(), correlation_id: (req as any).id, details: 'multiple-websites start' }).catch(() => {});
         }
         requireFields(body, ['notebookId','urls']);
         const urls: string[] = body.urls ?? [];
@@ -320,25 +278,19 @@ export function buildApp(deps?: Partial<AppDeps>): FastifyInstance {
           let websiteText = '';
           try { websiteText = await (app as any).storage.fetchText(urls[i]); } catch {}
           try { await (app as any).storage.uploadText(String(websiteText ?? ''), `sources/${body.notebookId}/${sid}.txt`); } catch {}
-          await app.docProc.processDocument({ notebookId: body.notebookId, sourceId: sid, sourceType: 'txt', text: websiteText || undefined, fileUrl: websiteText ? undefined : urls[i], correlationId: (req as any).correlationId });
+          await app.docProc.processDocument({ notebookId: body.notebookId, sourceId: sid, sourceType: 'txt', text: websiteText || undefined, fileUrl: websiteText ? undefined : urls[i], correlationId: (req as any).id });
         }
         const res = { success: true, message: 'multiple-websites data sent to webhook successfully', webhookResponse: 'OK' };
         if (idemKey) idem.complete(idemKey, { statusCode: 200, body: res });
-        // heartbeat DONE
-        if (comms) {
-          await comms.publishHeartbeat({
-            from_agent: 'orchestrator', team: 'orange', role: 'impl', tm_ids: ['process-additional-sources'], task_id: String(body.sourceId ?? ''), event: 'PROCESS_ADDITIONAL_SOURCES', status: 'DONE', severity: 'INFO', timestamp: new Date().toISOString(), correlation_id: (req as any).id, details: 'multiple-websites done'
-          }).catch(() => {});
+        if (canEmit()) {
+          await (comms as any).publishHeartbeat({ from_agent: 'orchestrator', team: 'orange', role: 'impl', tm_ids: ['process-additional-sources'], task_id: String(body.sourceId ?? ''), event: 'PROCESS_ADDITIONAL_SOURCES', status: 'DONE', severity: 'INFO', timestamp: new Date().toISOString(), correlation_id: (req as any).id, details: 'multiple-websites done' }).catch(() => {});
         }
         return reply.code(200).send(res);
       } catch (e) {
         const res = { code: 'UNPROCESSABLE_ENTITY', message: 'Invalid multiple-websites payload' };
         if (idemKey) idem.complete(idemKey, { statusCode: 422, body: res });
-        // blocker
-        if (comms) {
-          await comms.publishBlocker({
-            from_agent: 'orchestrator', team: 'orange', role: 'impl', tm_ids: ['process-additional-sources'], task_id: String(body.sourceId ?? ''), event: 'PROCESS_ADDITIONAL_SOURCES', status: 'FAILED', severity: 'CRITICAL', timestamp: new Date().toISOString(), correlation_id: (req as any).id, details: 'multiple-websites failed'
-          }).catch(() => {});
+        if (canEmit()) {
+          await (comms as any).publishBlocker({ from_agent: 'orchestrator', team: 'orange', role: 'impl', tm_ids: ['process-additional-sources'], task_id: String(body.sourceId ?? ''), event: 'PROCESS_ADDITIONAL_SOURCES', status: 'FAILED', severity: 'CRITICAL', timestamp: new Date().toISOString(), correlation_id: (req as any).id, details: 'multiple-websites failed' }).catch(() => {});
         }
         return reply.code(422).send(res);
       }
@@ -364,28 +316,15 @@ export function buildApp(deps?: Partial<AppDeps>): FastifyInstance {
     const callbackUrl: string | null = body?.callback_url ?? null;
 
     const idemKey = (req.headers['idempotency-key'] as string|undefined)?.trim();
-    if (idemKey) { const cached = idem.get(idemKey); if (cached) return reply.code(cached.statusCode).send(cached.body); idem.begin(idemKey); }
+    if (idemKey) { const cached = idem.get(idemKey); if (cached) return reply.code(cached.statusCode).send(cached.body); const started = idem.begin(idemKey); if (!started) { const again = idem.get(idemKey); if (again) return reply.code(again.statusCode).send(again.body); return reply.code(202).send({ success: true, message: 'Audio generation started' }); } }
 
     try { if ((db as any).updateNotebookStatus && notebookId) await (db as any).updateNotebookStatus(notebookId, 'generating'); } catch {}
 
     const corr = (req as any).id;
     const route = '/webhook/generate-audio';
 
-    // heartbeat START
-    if (comms) {
-      await comms.publishHeartbeat({
-        from_agent: 'orchestrator',
-        team: 'orange',
-        role: 'impl',
-        tm_ids: ['generate-audio'],
-        task_id: String(notebookId ?? ''),
-        event: 'TTS_JOB',
-        status: 'START',
-        severity: 'INFO',
-        timestamp: new Date().toISOString(),
-        correlation_id: corr,
-        details: 'TTS job started'
-      }).catch(() => {});
+    if (canEmit()) {
+      await (comms as any).publishHeartbeat({ from_agent: 'orchestrator', team: 'orange', role: 'impl', tm_ids: ['generate-audio'], task_id: String(notebookId ?? ''), event: 'TTS_JOB', status: 'START', severity: 'INFO', timestamp: new Date().toISOString(), correlation_id: corr, details: 'TTS job started' }).catch(() => {});
     }
 
     jobs.add('generate-audio', async () => {
@@ -418,40 +357,14 @@ export function buildApp(deps?: Partial<AppDeps>): FastifyInstance {
           }
         }
 
-        // heartbeat DONE
-        if (comms) {
-          await comms.publishHeartbeat({
-            from_agent: 'orchestrator',
-            team: 'orange',
-            role: 'impl',
-            tm_ids: ['generate-audio'],
-            task_id: String(notebookId ?? ''),
-            event: 'TTS_JOB',
-            status: 'DONE',
-            severity: 'INFO',
-            timestamp: new Date().toISOString(),
-            correlation_id: corr,
-            details: 'TTS job completed'
-          }).catch(() => {});
+        if (canEmit()) {
+          await (comms as any).publishHeartbeat({ from_agent: 'orchestrator', team: 'orange', role: 'impl', tm_ids: ['generate-audio'], task_id: String(notebookId ?? ''), event: 'TTS_JOB', status: 'DONE', severity: 'INFO', timestamp: new Date().toISOString(), correlation_id: corr, details: 'TTS job completed' }).catch(() => {});
         }
       } catch (e) {
         try { if ((db as any).updateNotebookStatus && notebookId) await (db as any).updateNotebookStatus(notebookId, 'failed'); } catch {}
         if (callbackUrl) { try { await undiciRequest(callbackUrl, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ notebook_id: notebookId, status: 'failed' }) }); app.log.info({ correlation_id: corr, event_code: 'CALLBACK_SENT', route, callback_host: (() => { try { return new URL(String(callbackUrl)).host; } catch { return undefined; } })() }, 'Callback sent'); } catch {} }
-        // blocker CRITICAL
-        if (comms) {
-          await comms.publishBlocker({
-            from_agent: 'orchestrator',
-            team: 'orange',
-            role: 'impl',
-            tm_ids: ['generate-audio'],
-            task_id: String(notebookId ?? ''),
-            event: 'TTS_JOB',
-            status: 'FAILED',
-            severity: 'CRITICAL',
-            timestamp: new Date().toISOString(),
-            correlation_id: corr,
-            details: 'TTS job failed'
-          }).catch(() => {});
+        if (canEmit()) {
+          await (comms as any).publishBlocker({ from_agent: 'orchestrator', team: 'orange', role: 'impl', tm_ids: ['generate-audio'], task_id: String(notebookId ?? ''), event: 'TTS_JOB', status: 'FAILED', severity: 'CRITICAL', timestamp: new Date().toISOString(), correlation_id: corr, details: 'TTS job failed' }).catch(() => {});
         }
       }
     }, {});

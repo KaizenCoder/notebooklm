@@ -1,0 +1,43 @@
+[2025-08-12T21:19:44.439Z] listener_start url=redis://127.0.0.1:6379 streams=agents:pair:team03 group=supervision consumer=sup-jstaf1rkqv
+[2025-08-12T21:19:44.442Z] group_exists stream=agents:pair:team03 group=supervision
+[2025-08-12T21:19:54.259Z] idle
+[2025-08-12T21:20:04.342Z] idle
+[2025-08-12T21:20:14.531Z] idle
+[2025-08-12T21:20:24.368Z] idle
+[2025-08-12T21:20:34.460Z] idle
+[2025-08-12T21:20:44.644Z] idle
+[2025-08-12T21:20:54.483Z] idle
+[2025-08-12T21:21:04.573Z] idle
+[2025-08-12T21:21:14.751Z] idle
+[2025-08-12T21:21:24.583Z] idle
+{"ts":"2025-08-12T21:21:33.501Z","stream":"agents:pair:team03","id":"1755033693554-0","message":{"from_agent":"impl_team03","team":"team03","role":"impl","to":"auditor","topic":"AUDIT_REQUEST","event":"READY_FOR_AUDIT","status":"READY","tm_ids":"[\"T3\"]","task_id":"T3","pair_id":"team03","links":"[\"https://github.com/KaizenCoder/notebooklm/pull/5\"]","timestamp":"2025-08-12T21:21:33.504Z","correlation_id":"75fb44f7-af53-4e71-8d15-5919125dfa72","details":"Bundle pr├¬t pour audit"}}
+[2025-08-12T21:21:43.731Z] idle
+[2025-08-12T21:21:53.612Z] idle
+[2025-08-12T21:22:03.663Z] idle
+[2025-08-12T21:22:13.839Z] idle
+[2025-08-12T21:22:23.713Z] idle
+[2025-08-12T21:22:33.773Z] idle
+[2025-08-12T21:22:43.943Z] idle
+[2025-08-12T21:22:53.824Z] idle
+{"ts":"2025-08-12T21:22:58.362Z","stream":"agents:pair:team03","id":"1755033778439-0","message":{"from_agent":"auditor_team03","team":"team03","role":"audit","to":"coordinator","topic":"STATUS_UPDATE","event":"AUDIT_PROGRESS","status":"INFO","severity":"INFO","timestamp":"2025-08-12T21:22:58.358Z","correlation_id":"a1d52588-3d50-4d13-815f-866d575b23b9","task_id":"tm-03","tm_ids":"[\"tm-2\",\"tm-6\",\"tm-8\",\"tm-9\",\"tm-10\",\"tm-14\",\"tm-18\"]","links":"[\"/audit\",\"/docs\",\"/orchestrator/test\"]","details":"Missions: tm-18 GPU-only enforcement (validation CPU reject sur RAG/ingestion); tm-8 Adapters (ENV mapping + mocks Whisper/Storage); tm-6 generate-audio (callbacks success/failed + audio_url); tm-2 process-document (parit├® OpenAPI + callbacks; E2E); tm-9 chunking + embeddings (dims 768, overlap, loc.lines); tm-14 Health/Ready (ENVs, mod├¿les pr├®sents, GPU probe); tm-10 Logging & errors (redaction, sampling, latences) | Travaux r├®cents: Heartbeats multi-stream op├®rationnels (agents:global, agents:pair:team03); R├®silience: 17/17 tests PASS; Adapter r├®silience Ollama test├® (retry/circuit breaker); Contrat GPU_REQUIRED test├® (503 si GPU absent); Tests idempotence ├®largis (add sources / generate-audio / concurrency); Docs dÔÇÖaudit/claim cr├®├®s et mis ├á jour (cf. audit/ et claims/); TaskÔÇæMaster synchronis├® (statuts mis ├á jour); Scripts Redis dÔÇÖ├®mission (heartbeat, verdict, status update) ajout├®s"}}
+[2025-08-12T21:23:08.478Z] idle
+[2025-08-12T21:23:18.668Z] idle
+[2025-08-12T21:23:28.457Z] idle
+[2025-08-12T21:23:38.587Z] idle
+[2025-08-12T21:23:48.777Z] idle
+[2025-08-12T21:23:58.571Z] idle
+[2025-08-12T21:24:08.704Z] idle
+[2025-08-12T21:24:18.897Z] idle
+[2025-08-12T21:24:28.683Z] idle
+[2025-08-12T21:24:38.814Z] idle
+[2025-08-12T21:24:49.002Z] idle
+[2025-08-12T21:24:58.812Z] idle
+[2025-08-12T21:25:08.939Z] idle
+[2025-08-12T21:25:19.125Z] idle
+[2025-08-12T21:25:28.931Z] idle
+[2025-08-12T21:25:39.064Z] idle
+[2025-08-12T21:25:49.250Z] idle
+[2025-08-12T21:25:59.008Z] idle
+[2025-08-12T21:26:09.171Z] idle
+[2025-08-12T21:26:19.361Z] idle
+[2025-08-12T21:26:29.170Z] idle

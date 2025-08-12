@@ -36,4 +36,6 @@
 #TEST: docs/spec/README.md
 
 ## Limitations
-- Ce README encadre le format documentaire; il n’introduit aucune exigence hors parité. 
+- Ce README encadre le format documentaire; il n’introduit aucune exigence hors parité.
+
+<!-- CI-kick: 2025-08-12T16:40Z -->

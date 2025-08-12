@@ -192,7 +192,7 @@ export function buildApp(deps?: Partial<AppDeps>): FastifyInstance {
 
     // heartbeat START
     if (comms) {
-      comms.publishHeartbeat({
+      await comms.publishHeartbeat({
         from_agent: 'orchestrator',
         team: 'orange',
         role: 'impl',
@@ -220,7 +220,7 @@ export function buildApp(deps?: Partial<AppDeps>): FastifyInstance {
         }
         // heartbeat DONE
         if (comms) {
-          comms.publishHeartbeat({
+          await comms.publishHeartbeat({
             from_agent: 'orchestrator',
             team: 'orange',
             role: 'impl',
@@ -240,7 +240,7 @@ export function buildApp(deps?: Partial<AppDeps>): FastifyInstance {
         if (body.callback_url) { try { await undiciRequest(body.callback_url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ source_id: body.source_id, status: 'failed' }) }); app.log.info({ correlation_id: (req as any).id, event_code: 'CALLBACK_SENT', route: '/webhook/process-document', callback_host: (() => { try { return new URL(String(body.callback_url)).host; } catch { return undefined; } })() }, 'Callback sent'); } catch {} }
         // blocker CRITICAL
         if (comms) {
-          comms.publishBlocker({
+          await comms.publishBlocker({
             from_agent: 'orchestrator',
             team: 'orange',
             role: 'impl',
@@ -276,7 +276,7 @@ export function buildApp(deps?: Partial<AppDeps>): FastifyInstance {
       try {
         // heartbeat START
         if (comms) {
-          comms.publishHeartbeat({
+          await comms.publishHeartbeat({
             from_agent: 'orchestrator', team: 'orange', role: 'impl', tm_ids: ['process-additional-sources'], task_id: String(body.sourceId ?? ''), event: 'PROCESS_ADDITIONAL_SOURCES', status: 'START', severity: 'INFO', timestamp: new Date().toISOString(), correlation_id: (req as any).id, details: 'copied-text start'
           }).catch(() => {});
         }
@@ -287,7 +287,7 @@ export function buildApp(deps?: Partial<AppDeps>): FastifyInstance {
         if (idemKey) idem.complete(idemKey, { statusCode: 200, body: res });
         // heartbeat DONE
         if (comms) {
-          comms.publishHeartbeat({
+          await comms.publishHeartbeat({
             from_agent: 'orchestrator', team: 'orange', role: 'impl', tm_ids: ['process-additional-sources'], task_id: String(body.sourceId ?? ''), event: 'PROCESS_ADDITIONAL_SOURCES', status: 'DONE', severity: 'INFO', timestamp: new Date().toISOString(), correlation_id: (req as any).id, details: 'copied-text done'
           }).catch(() => {});
         }
@@ -297,7 +297,7 @@ export function buildApp(deps?: Partial<AppDeps>): FastifyInstance {
         if (idemKey) idem.complete(idemKey, { statusCode: 422, body: res });
         // blocker
         if (comms) {
-          comms.publishBlocker({
+          await comms.publishBlocker({
             from_agent: 'orchestrator', team: 'orange', role: 'impl', tm_ids: ['process-additional-sources'], task_id: String(body.sourceId ?? ''), event: 'PROCESS_ADDITIONAL_SOURCES', status: 'FAILED', severity: 'CRITICAL', timestamp: new Date().toISOString(), correlation_id: (req as any).id, details: 'copied-text failed'
           }).catch(() => {});
         }
@@ -308,7 +308,7 @@ export function buildApp(deps?: Partial<AppDeps>): FastifyInstance {
       try {
         // heartbeat START
         if (comms) {
-          comms.publishHeartbeat({
+          await comms.publishHeartbeat({
             from_agent: 'orchestrator', team: 'orange', role: 'impl', tm_ids: ['process-additional-sources'], task_id: String(body.sourceId ?? ''), event: 'PROCESS_ADDITIONAL_SOURCES', status: 'START', severity: 'INFO', timestamp: new Date().toISOString(), correlation_id: (req as any).id, details: 'multiple-websites start'
           }).catch(() => {});
         }
@@ -326,7 +326,7 @@ export function buildApp(deps?: Partial<AppDeps>): FastifyInstance {
         if (idemKey) idem.complete(idemKey, { statusCode: 200, body: res });
         // heartbeat DONE
         if (comms) {
-          comms.publishHeartbeat({
+          await comms.publishHeartbeat({
             from_agent: 'orchestrator', team: 'orange', role: 'impl', tm_ids: ['process-additional-sources'], task_id: String(body.sourceId ?? ''), event: 'PROCESS_ADDITIONAL_SOURCES', status: 'DONE', severity: 'INFO', timestamp: new Date().toISOString(), correlation_id: (req as any).id, details: 'multiple-websites done'
           }).catch(() => {});
         }
@@ -336,7 +336,7 @@ export function buildApp(deps?: Partial<AppDeps>): FastifyInstance {
         if (idemKey) idem.complete(idemKey, { statusCode: 422, body: res });
         // blocker
         if (comms) {
-          comms.publishBlocker({
+          await comms.publishBlocker({
             from_agent: 'orchestrator', team: 'orange', role: 'impl', tm_ids: ['process-additional-sources'], task_id: String(body.sourceId ?? ''), event: 'PROCESS_ADDITIONAL_SOURCES', status: 'FAILED', severity: 'CRITICAL', timestamp: new Date().toISOString(), correlation_id: (req as any).id, details: 'multiple-websites failed'
           }).catch(() => {});
         }
@@ -373,7 +373,7 @@ export function buildApp(deps?: Partial<AppDeps>): FastifyInstance {
 
     // heartbeat START
     if (comms) {
-      comms.publishHeartbeat({
+      await comms.publishHeartbeat({
         from_agent: 'orchestrator',
         team: 'orange',
         role: 'impl',
@@ -420,7 +420,7 @@ export function buildApp(deps?: Partial<AppDeps>): FastifyInstance {
 
         // heartbeat DONE
         if (comms) {
-          comms.publishHeartbeat({
+          await comms.publishHeartbeat({
             from_agent: 'orchestrator',
             team: 'orange',
             role: 'impl',
@@ -439,7 +439,7 @@ export function buildApp(deps?: Partial<AppDeps>): FastifyInstance {
         if (callbackUrl) { try { await undiciRequest(callbackUrl, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ notebook_id: notebookId, status: 'failed' }) }); app.log.info({ correlation_id: corr, event_code: 'CALLBACK_SENT', route, callback_host: (() => { try { return new URL(String(callbackUrl)).host; } catch { return undefined; } })() }, 'Callback sent'); } catch {} }
         // blocker CRITICAL
         if (comms) {
-          comms.publishBlocker({
+          await comms.publishBlocker({
             from_agent: 'orchestrator',
             team: 'orange',
             role: 'impl',

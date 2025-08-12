@@ -27,12 +27,14 @@ async function lastId(stream: string): Promise<string | null> {
   return msgs[0]?.id ?? null;
 }
 
+async function sleep(ms: number) { return new Promise(r => setTimeout(r, ms)); }
+
 // 1) generate-audio START/DONE
 {
   const beforeId = await lastId('coordination_heartbeat');
   const res = await app.inject({ method: 'POST', url: '/webhook/generate-audio', headers: { Authorization: 'Bearer test' }, payload: { notebook_id: 'nb_test' } });
   if (res.statusCode !== 202) { console.error('expected 202 gen-audio'); process.exit(1); }
-  await new Promise(r=>setTimeout(r, 300));
+  await sleep(1000);
   const afterId = await lastId('coordination_heartbeat');
   if (!afterId || afterId === beforeId) { console.error('no heartbeat published for generate-audio'); process.exit(1); }
 }
@@ -42,7 +44,7 @@ async function lastId(stream: string): Promise<string | null> {
   const beforeId = await lastId('coordination_heartbeat');
   const res = await app.inject({ method: 'POST', url: '/webhook/process-document', headers: { Authorization: 'Bearer test' }, payload: { source_id: 's1', file_url: 'http://example.com/a', file_path: '/a', source_type: 'txt', callback_url: 'http://localhost/cb', notebook_id: 'nb1' } });
   if (res.statusCode !== 202) { console.error('expected 202 process-document'); process.exit(1); }
-  await new Promise(r=>setTimeout(r, 300));
+  await sleep(1000);
   const afterId = await lastId('coordination_heartbeat');
   if (!afterId || afterId === beforeId) { console.error('no heartbeat published for process-document'); process.exit(1); }
 }
@@ -52,7 +54,7 @@ async function lastId(stream: string): Promise<string | null> {
   const beforeId = await lastId('coordination_heartbeat');
   const res = await app.inject({ method: 'POST', url: '/webhook/process-additional-sources', headers: { Authorization: 'Bearer test' }, payload: { type: 'copied-text', notebookId: 'nb1', content: 'hello', sourceId: 'sid1' } });
   if (res.statusCode !== 200) { console.error('expected 200 additional-sources'); process.exit(1); }
-  await new Promise(r=>setTimeout(r, 300));
+  await sleep(1000);
   const afterId = await lastId('coordination_heartbeat');
   if (!afterId || afterId === beforeId) { console.error('no heartbeat published for additional-sources'); process.exit(1); }
 }

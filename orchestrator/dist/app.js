@@ -227,7 +227,7 @@ export function buildApp(deps) {
         }
         // heartbeat START
         if (comms) {
-            comms.publishHeartbeat({
+            await comms.publishHeartbeat({
                 from_agent: 'orchestrator',
                 team: 'orange',
                 role: 'impl',
@@ -259,7 +259,7 @@ export function buildApp(deps) {
                 }
                 // heartbeat DONE
                 if (comms) {
-                    comms.publishHeartbeat({
+                    await comms.publishHeartbeat({
                         from_agent: 'orchestrator',
                         team: 'orange',
                         role: 'impl',
@@ -294,7 +294,7 @@ export function buildApp(deps) {
                 }
                 // blocker CRITICAL
                 if (comms) {
-                    comms.publishBlocker({
+                    await comms.publishBlocker({
                         from_agent: 'orchestrator',
                         team: 'orange',
                         role: 'impl',
@@ -332,7 +332,7 @@ export function buildApp(deps) {
             try {
                 // heartbeat START
                 if (comms) {
-                    comms.publishHeartbeat({
+                    await comms.publishHeartbeat({
                         from_agent: 'orchestrator', team: 'orange', role: 'impl', tm_ids: ['process-additional-sources'], task_id: String(body.sourceId ?? ''), event: 'PROCESS_ADDITIONAL_SOURCES', status: 'START', severity: 'INFO', timestamp: new Date().toISOString(), correlation_id: req.id, details: 'copied-text start'
                     }).catch(() => { });
                 }
@@ -347,7 +347,7 @@ export function buildApp(deps) {
                     idem.complete(idemKey, { statusCode: 200, body: res });
                 // heartbeat DONE
                 if (comms) {
-                    comms.publishHeartbeat({
+                    await comms.publishHeartbeat({
                         from_agent: 'orchestrator', team: 'orange', role: 'impl', tm_ids: ['process-additional-sources'], task_id: String(body.sourceId ?? ''), event: 'PROCESS_ADDITIONAL_SOURCES', status: 'DONE', severity: 'INFO', timestamp: new Date().toISOString(), correlation_id: req.id, details: 'copied-text done'
                     }).catch(() => { });
                 }
@@ -359,7 +359,7 @@ export function buildApp(deps) {
                     idem.complete(idemKey, { statusCode: 422, body: res });
                 // blocker
                 if (comms) {
-                    comms.publishBlocker({
+                    await comms.publishBlocker({
                         from_agent: 'orchestrator', team: 'orange', role: 'impl', tm_ids: ['process-additional-sources'], task_id: String(body.sourceId ?? ''), event: 'PROCESS_ADDITIONAL_SOURCES', status: 'FAILED', severity: 'CRITICAL', timestamp: new Date().toISOString(), correlation_id: req.id, details: 'copied-text failed'
                     }).catch(() => { });
                 }
@@ -370,7 +370,7 @@ export function buildApp(deps) {
             try {
                 // heartbeat START
                 if (comms) {
-                    comms.publishHeartbeat({
+                    await comms.publishHeartbeat({
                         from_agent: 'orchestrator', team: 'orange', role: 'impl', tm_ids: ['process-additional-sources'], task_id: String(body.sourceId ?? ''), event: 'PROCESS_ADDITIONAL_SOURCES', status: 'START', severity: 'INFO', timestamp: new Date().toISOString(), correlation_id: req.id, details: 'multiple-websites start'
                     }).catch(() => { });
                 }
@@ -395,7 +395,7 @@ export function buildApp(deps) {
                     idem.complete(idemKey, { statusCode: 200, body: res });
                 // heartbeat DONE
                 if (comms) {
-                    comms.publishHeartbeat({
+                    await comms.publishHeartbeat({
                         from_agent: 'orchestrator', team: 'orange', role: 'impl', tm_ids: ['process-additional-sources'], task_id: String(body.sourceId ?? ''), event: 'PROCESS_ADDITIONAL_SOURCES', status: 'DONE', severity: 'INFO', timestamp: new Date().toISOString(), correlation_id: req.id, details: 'multiple-websites done'
                     }).catch(() => { });
                 }
@@ -407,7 +407,7 @@ export function buildApp(deps) {
                     idem.complete(idemKey, { statusCode: 422, body: res });
                 // blocker
                 if (comms) {
-                    comms.publishBlocker({
+                    await comms.publishBlocker({
                         from_agent: 'orchestrator', team: 'orange', role: 'impl', tm_ids: ['process-additional-sources'], task_id: String(body.sourceId ?? ''), event: 'PROCESS_ADDITIONAL_SOURCES', status: 'FAILED', severity: 'CRITICAL', timestamp: new Date().toISOString(), correlation_id: req.id, details: 'multiple-websites failed'
                     }).catch(() => { });
                 }
@@ -453,7 +453,7 @@ export function buildApp(deps) {
         const route = '/webhook/generate-audio';
         // heartbeat START
         if (comms) {
-            comms.publishHeartbeat({
+            await comms.publishHeartbeat({
                 from_agent: 'orchestrator',
                 team: 'orange',
                 role: 'impl',
@@ -506,7 +506,7 @@ export function buildApp(deps) {
                 }
                 // heartbeat DONE
                 if (comms) {
-                    comms.publishHeartbeat({
+                    await comms.publishHeartbeat({
                         from_agent: 'orchestrator',
                         team: 'orange',
                         role: 'impl',
@@ -541,7 +541,7 @@ export function buildApp(deps) {
                 }
                 // blocker CRITICAL
                 if (comms) {
-                    comms.publishBlocker({
+                    await comms.publishBlocker({
                         from_agent: 'orchestrator',
                         team: 'orange',
                         role: 'impl',

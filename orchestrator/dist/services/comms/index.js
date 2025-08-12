@@ -23,26 +23,27 @@ export function createComms(env) {
         return null;
     const client = createClient({ url: env.REDIS_URL });
     client.on('error', (err) => { /* eslint-disable no-console */ console.error('Redis error', err); });
-    const ready = client.connect().catch(() => { });
+    const ready = client.connect();
+    const HEARTBEAT_STREAM = env.REDIS_STREAM_HEARTBEAT || 'coordination_heartbeat';
+    const BLOCKERS_STREAM = env.REDIS_STREAM_BLOCKERS || 'coordination_blockers';
+    const AUDIT_REQ_STREAM = env.REDIS_STREAM_AUDIT_REQ || 'audit_requests';
+    const AUDIT_VERDICT_STREAM = env.REDIS_STREAM_AUDIT_VERDICT || 'auditeur_compliance';
     async function xadd(stream, msg) {
         const parsed = MessageSchema.safeParse(msg);
         if (!parsed.success)
-            return; // ne bloque pas la route en cas d'échec de validation
+            return;
         const flat = {};
         for (const [k, v] of Object.entries(parsed.data)) {
             flat[k] = typeof v === 'string' ? v : JSON.stringify(v);
         }
-        try {
-            await ready;
-            await client.xAdd(stream, '*', flat);
-        }
-        catch { }
+        await ready;
+        await client.xAdd(stream, '*', flat);
     }
     return {
-        async publishHeartbeat(msg) { await xadd(env.REDIS_STREAM_HEARTBEAT, msg); },
-        async publishBlocker(msg) { await xadd(env.REDIS_STREAM_BLOCKERS, msg); },
-        async publishAuditRequest(msg) { await xadd(env.REDIS_STREAM_AUDIT_REQ, msg); },
-        async publishAuditVerdict(msg) { await xadd(env.REDIS_STREAM_AUDIT_VERDICT, msg); },
+        async publishHeartbeat(msg) { await xadd(HEARTBEAT_STREAM, msg); },
+        async publishBlocker(msg) { await xadd(BLOCKERS_STREAM, msg); },
+        async publishAuditRequest(msg) { await xadd(AUDIT_REQ_STREAM, msg); },
+        async publishAuditVerdict(msg) { await xadd(AUDIT_VERDICT_STREAM, msg); },
         async close() { try {
             await client.disconnect();
         }

@@ -62,11 +62,31 @@ export function buildApp(deps?: Partial<AppDeps>): FastifyInstance {
   app.decorate('whisper', whisper);
 
   app.register(fp(async (instance: FastifyInstance) => {
+    function isSecretKey(k: string): boolean {
+      const key = k.toLowerCase();
+      return key === 'authorization' || key === 'cookie' || key.includes('api-key') || key.includes('apikey') || key.includes('token') || key.includes('password') || key.includes('secret') || key.includes('supabase');
+    }
+    function sampleValue(v: unknown, maxLen = 256): unknown {
+      if (typeof v === 'string') {
+        if (v.length <= maxLen) return v;
+        return v.slice(0, maxLen) + `…(truncated ${v.length - maxLen} chars)`;
+      }
+      if (Array.isArray(v)) return v.slice(0, 10).map((x) => sampleValue(x, maxLen));
+      if (v && typeof v === 'object') {
+        const out: Record<string, unknown> = {};
+        for (const [k, val] of Object.entries(v as any)) {
+          out[k] = isSecretKey(k) ? '[REDACTED]' : sampleValue(val, maxLen);
+        }
+        return out;
+      }
+      return v;
+    }
     function redactHeaders(h?: Record<string, any>) {
       if (!h) return {} as Record<string, any>;
-      const r: Record<string, any> = { ...h };
-      if ('authorization' in r) r['authorization'] = '[REDACTED]';
-      if ('Authorization' in r) r['Authorization'] = '[REDACTED]';
+      const r: Record<string, any> = {};
+      for (const [k, v] of Object.entries(h)) {
+        r[k] = isSecretKey(k) ? '[REDACTED]' : sampleValue(v);
+      }
       return r;
     }
     instance.addHook('preValidation', async (req: FastifyRequest, reply: FastifyReply) => {
@@ -78,6 +98,7 @@ export function buildApp(deps?: Partial<AppDeps>): FastifyInstance {
       }
     });
     instance.addHook('onResponse', async (req, _reply) => {
+      // Log structuré sans secrets + sampling
       instance.log.info({ correlation_id: (req as any).id, route: (req as any).routerPath ?? (req as any).url, method: (req as any).method, headers: redactHeaders((req as any).headers) }, 'request complete');
     });
   }));
@@ -92,8 +113,10 @@ export function buildApp(deps?: Partial<AppDeps>): FastifyInstance {
     const details: Record<string, unknown> = {};
     let ok = true;
 
+    // DB check
     try { await db.ping(); details.db = 'ok'; } catch (e) { details.db = { error: String(e) }; ok = false; }
 
+    // Ollama check
     try {
       const tags = await ollama.listModels(); details.ollama = 'ok';
       const need = [env.OLLAMA_EMBED_MODEL, env.OLLAMA_LLM_MODEL].filter(Boolean) as string[];
@@ -106,13 +129,15 @@ export function buildApp(deps?: Partial<AppDeps>): FastifyInstance {
       }
     } catch (e) { details.ollama = { error: String(e) }; ok = false; }
 
+    // Whisper check
     if (env.WHISPER_ASR_URL) {
-      try { await whisper.transcribe('http://example.com/dummy.wav'); details.whisper = 'ok'; }
+      try { await whisper.transcribe('http://example.com/dummy.wav'); details.whisper = 'ok'; } // Use a dummy URL for probe
       catch (e) { details.whisper = { error: String(e) }; ok = false; }
     }
 
+    // Coqui TTS check
     if (env.COQUI_TTS_URL) {
-      try { await audio.synthesize('dummy text'); details.coqui = 'ok'; }
+      try { await audio.synthesize('dummy text'); details.coqui = 'ok'; } // Use dummy text for probe
       catch (e) { details.coqui = { error: String(e) }; ok = false; }
     }
 
@@ -154,12 +179,15 @@ export function buildApp(deps?: Partial<AppDeps>): FastifyInstance {
           tMatchEnd = Date.now();
         }
       } catch {}
+      const tChatStart = Date.now();
       const chatRes = await ollama.chat(env.OLLAMA_LLM_MODEL, messages); const text = chatRes?.message?.content ?? '';
+      const tChatEnd = Date.now();
       try { const lastUser = messages[messages.length - 1]; if (lastUser?.role && lastUser?.content) await db.insertMessage(notebookId ?? null, lastUser.role, lastUser.content); if (text) await db.insertMessage(notebookId ?? null, 'assistant', text); } catch {}
       const t1 = Date.now();
       const rag_total_ms = t1 - t0;
       const match_ms = tMatchStart && tMatchEnd ? (tMatchEnd - tMatchStart) : null;
-      app.log.info({ correlation_id: (req as any).id, event_code: 'RAG_COMPLETE', route: '/webhook/chat', rag_duration_ms: rag_total_ms, match_documents_ms: match_ms }, 'RAG complete');
+      const llm_ms = tChatEnd - tChatStart;
+      app.log.info({ correlation_id: (req as any).id, event_code: 'RAG_COMPLETE', route: '/webhook/chat', rag_duration_ms: rag_total_ms, match_documents_ms: match_ms, llm_generate_ms: llm_ms }, 'RAG complete');
       return reply.code(200).send({ success: true, data: { output: [{ text, citations }] } });
     }
     return reply.code(200).send({ success: true, data: { output: [] } });
@@ -217,7 +245,6 @@ export function buildApp(deps?: Partial<AppDeps>): FastifyInstance {
     if (body.type === 'copied-text') {
       try {
         requireFields(body, ['notebookId','content','sourceId']);
-        try { await (app as any).storage.uploadText(String(body.content ?? ''), `sources/${body.notebookId}/${body.sourceId}.txt`); } catch {}
         await app.docProc.processDocument({ notebookId: body.notebookId, sourceId: body.sourceId, text: body.content, sourceType: 'txt', correlationId: (req as any).correlationId });
         const res = { success: true, message: 'copied-text data sent to webhook successfully', webhookResponse: 'OK' };
         if (idemKey) idem.complete(idemKey, { statusCode: 200, body: res });
@@ -235,10 +262,7 @@ export function buildApp(deps?: Partial<AppDeps>): FastifyInstance {
         const sourceIds: string[] = b.sourceIds ?? [];
         for (let i = 0; i < urls.length; i++) {
           const sid = sourceIds[i] ?? sourceIds[0];
-          let websiteText = '';
-          try { websiteText = await (app as any).storage.fetchText(urls[i]); } catch {}
-          try { await (app as any).storage.uploadText(String(websiteText ?? ''), `sources/${body.notebookId}/${sid}.txt`); } catch {}
-          await app.docProc.processDocument({ notebookId: body.notebookId, sourceId: sid, sourceType: 'txt', text: websiteText || undefined, fileUrl: websiteText ? undefined : urls[i], correlationId: (req as any).correlationId });
+          await app.docProc.processDocument({ notebookId: body.notebookId, sourceId: sid, sourceType: 'txt', fileUrl: urls[i], correlationId: (req as any).correlationId });
         }
         const res = { success: true, message: 'multiple-websites data sent to webhook successfully', webhookResponse: 'OK' };
         if (idemKey) idem.complete(idemKey, { statusCode: 200, body: res });
@@ -274,41 +298,17 @@ export function buildApp(deps?: Partial<AppDeps>): FastifyInstance {
 
     try { if ((db as any).updateNotebookStatus && notebookId) await (db as any).updateNotebookStatus(notebookId, 'generating'); } catch {}
 
-    const corr = (req as any).id;
-    const route = '/webhook/generate-audio';
-
     jobs.add('generate-audio', async () => {
       try {
-        const t0 = Date.now();
-        app.log.info({ correlation_id: corr, event_code: 'TTS_START', route }, 'TTS start');
         const bin = await (app as any).audio.synthesize('overview text');
-        const t1 = Date.now();
-        app.log.info({ correlation_id: corr, event_code: 'TTS_COMPLETE', route, tts_duration_ms: t1 - t0 }, 'TTS complete');
-
         const path = `audio/${notebookId ?? 'unknown'}.mp3`;
-        const tUp0 = Date.now();
-        app.log.info({ correlation_id: corr, event_code: 'UPLOAD_START', route, path }, 'Upload start');
         const audioUrl = await (app as any).storage.upload(bin, path);
-        const tUp1 = Date.now();
-        let host: string | undefined;
-        try { host = new URL(String(audioUrl)).host; } catch {}
-        app.log.info({ correlation_id: corr, event_code: 'UPLOAD_COMPLETE', route, upload_duration_ms: tUp1 - tUp0, audio_url_host: host }, 'Upload complete');
-
         if ((db as any).setNotebookAudio && notebookId) await (db as any).setNotebookAudio(notebookId, audioUrl);
         if ((db as any).updateNotebookStatus && notebookId) await (db as any).updateNotebookStatus(notebookId, 'completed');
-
-        if (callbackUrl) {
-          for (let i = 0; i < 2; i++) {
-            try {
-              await undiciRequest(callbackUrl, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ notebook_id: notebookId, audio_url: audioUrl, status: 'success' }) });
-              app.log.info({ correlation_id: corr, event_code: 'CALLBACK_SENT', route, callback_host: (() => { try { return new URL(String(callbackUrl)).host; } catch { return undefined; } })() }, 'Callback sent');
-              break;
-            } catch {}
-          }
-        }
+        if (callbackUrl) { for (let i = 0; i < 2; i++) { try { await undiciRequest(callbackUrl, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ notebook_id: notebookId, audio_url: audioUrl, status: 'success' }) }); break; } catch {} } }
       } catch (e) {
         try { if ((db as any).updateNotebookStatus && notebookId) await (db as any).updateNotebookStatus(notebookId, 'failed'); } catch {}
-        if (callbackUrl) { try { await undiciRequest(callbackUrl, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ notebook_id: notebookId, status: 'failed' }) }); app.log.info({ correlation_id: corr, event_code: 'CALLBACK_SENT', route, callback_host: (() => { try { return new URL(String(callbackUrl)).host; } catch { return undefined; } })() }, 'Callback sent'); } catch {} }
+        if (callbackUrl) { try { await undiciRequest(callbackUrl, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ notebook_id: notebookId, status: 'failed' }) }); } catch {} }
       }
     }, {});
 
@@ -338,6 +338,7 @@ export async function performBootChecks(app: FastifyInstance) {
   const { env, db, ollama, whisper, audio } = app;
   app.log.info('Performing boot checks...');
 
+  // DB check
   try {
     await db.ping();
     app.log.info('DB connection: OK');
@@ -346,6 +347,7 @@ export async function performBootChecks(app: FastifyInstance) {
     throw new Error('DB connection failed');
   }
 
+  // Ollama check
   try {
     const tags = await ollama.listModels();
     app.log.info('Ollama connection: OK');
@@ -372,9 +374,10 @@ export async function performBootChecks(app: FastifyInstance) {
     throw new Error('Ollama connection failed');
   }
 
+  // Whisper check
   if (env.WHISPER_ASR_URL) {
     try {
-      await whisper.transcribe('http://example.com/dummy.wav');
+      await whisper.transcribe('http://example.com/dummy.wav'); // Use a dummy URL for probe
       app.log.info('Whisper ASR connection: OK');
     } catch (e) {
       app.log.error({ err: e }, 'Whisper ASR connection: FAILED');
@@ -382,9 +385,10 @@ export async function performBootChecks(app: FastifyInstance) {
     }
   }
 
+  // Coqui TTS check
   if (env.COQUI_TTS_URL) {
     try {
-      await audio.synthesize('dummy text');
+      await audio.synthesize('dummy text'); // Use dummy text for probe
       app.log.info('Coqui TTS connection: OK');
     } catch (e) {
       app.log.error({ err: e }, 'Coqui TTS connection: FAILED');

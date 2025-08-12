@@ -22,11 +22,6 @@ export function createStorage(env: Env) {
       });
       if (res.statusCode >= 400) throw new Error(`Storage PUT failed: ${res.statusCode}`);
       return `${base}/${path}`;
-    },
-    async uploadText(text: string, path: string): Promise<string> {
-      const encoder = new TextEncoder();
-      const bin = encoder.encode(text);
-      return this.upload(bin, path);
     }
   };
 }

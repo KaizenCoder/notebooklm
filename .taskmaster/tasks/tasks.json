@@ -94,7 +94,7 @@
       {
         "id": 3,
         "title": "POST /webhook/process-additional-sources (multiple-websites)",
-        "status": "pending",
+        "status": "review",
         "priority": "medium",
         "dependencies": [
           "2"
@@ -109,12 +109,12 @@
           {
             "id": 4,
             "title": "IMPL: Handler websites + stockage .txt",
-            "status": "pending"
+            "status": "done"
           },
           {
             "id": 5,
             "title": "TEST: Contrat + intégration (Storage/DB mocks)",
-            "status": "pending"
+            "status": "done"
           },
           {
             "id": 6,
@@ -129,14 +129,14 @@
           {
             "id": 2,
             "title": "Integration tests (Storage + DB mocks)",
-            "status": "pending"
+            "status": "done"
           }
         ]
       },
       {
         "id": 4,
         "title": "POST /webhook/process-additional-sources (copied-text)",
-        "status": "pending",
+        "status": "review",
         "priority": "medium",
         "dependencies": [
           "2"
@@ -151,12 +151,12 @@
           {
             "id": 4,
             "title": "IMPL: Handler copied-text + stockage .txt",
-            "status": "pending"
+            "status": "done"
           },
           {
             "id": 5,
             "title": "TEST: Contrat + intégration (Storage/DB mocks)",
-            "status": "pending"
+            "status": "done"
           },
           {
             "id": 6,
@@ -178,7 +178,7 @@
       {
         "id": 5,
         "title": "POST /webhook/generate-notebook-content (202)",
-        "status": "pending",
+        "status": "review",
         "priority": "medium",
         "dependencies": [
           "2"
@@ -220,7 +220,7 @@
       {
         "id": 6,
         "title": "POST /webhook/generate-audio",
-        "status": "pending",
+        "status": "in-progress",
         "priority": "medium",
         "dependencies": [],
         "description": "[Clone strict] Set generating; TTS → upload to bucket audio; update notebook; callback success/failed.",
@@ -400,12 +400,12 @@
           {
             "id": 8,
             "title": "IMPL: Injecter correlation_id dans tous les logs applicatifs (hooks) + events chat/audio",
-            "status": "pending"
+            "status": "in-progress"
           },
           {
             "id": 9,
             "title": "IMPL: Évènements étape RAG/TTS/UPLOAD/CALLBACK + métriques latences",
-            "status": "pending"
+            "status": "in-progress"
           },
           {
             "id": 4,
@@ -430,7 +430,7 @@
           {
             "id": 11,
             "title": "TEST: Métriques latences présentes dans logs d’étapes",
-            "status": "pending"
+            "status": "in-progress"
           },
           {
             "id": 12,
@@ -733,7 +733,7 @@
       {
         "id": 19,
         "title": "Équipe 2 — Ingestion gap closure (parité stricte)",
-        "status": "pending",
+        "status": "in-progress",
         "priority": "high",
         "dependencies": [
           "2",
@@ -753,22 +753,22 @@
           {
             "id": 2,
             "title": "IMPL: Handler process-document (payload OpenAPI) + extraction + callback",
-            "status": "in-progress"
+            "status": "done"
           },
           {
             "id": 3,
             "title": "IMPL: Handler additional-sources (copied-text/multiple-websites)",
-            "status": "in-progress"
+            "status": "done"
           },
           {
             "id": 4,
             "title": "IMPL: Idempotency-Key (ingestion) + enforcements dims 768 + chunking tokens+overlap",
-            "status": "in-progress"
+            "status": "done"
           },
           {
             "id": 5,
             "title": "TEST: Callback success/failed + idempotence + dims 768 + overlap",
-            "status": "in-progress"
+            "status": "done"
           },
           {
             "id": 6,
@@ -780,7 +780,7 @@
     ],
     "metadata": {
       "created": "2025-08-11T13:58:41.290Z",
-      "updated": "2025-08-12T03:28:47.580Z",
+      "updated": "2025-08-12T12:25:00.000Z",
       "description": "Tasks for master context (clone parity, no MVP)"
     }
   }

@@ -435,12 +435,12 @@
           {
             "id": 12,
             "title": "IMPL: Métriques latences chat (match_documents, rag_total)",
-            "status": "pending"
+            "status": "done"
           },
           {
             "id": 13,
             "title": "IMPL: Évènements EXTRACT/EMBED/UPSERT pour process-document",
-            "status": "pending"
+            "status": "done"
           },
           {
             "id": 7,

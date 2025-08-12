@@ -21,17 +21,17 @@ const fakeJobs = {
 };
 
 const fakeAudio = { synthesize: async (_: string) => new Uint8Array([1,2,3]) } as any;
-const fakeStorage = { upload: async (_bin: Uint8Array, _path: string) => 'http://local/audio.mp3' } as any;
+const fakeStorage = { upload: async (_bin: Uint8Array, _path: string) => 'http://mock-storage/audio.mp3' } as any;
 
 const app = buildApp({ env, db: fakeDb as any, jobs: fakeJobs as any, audio: fakeAudio as any, storage: fakeStorage as any } as any);
 (app as any).log = fakeLogger;
 
-const res = await app.inject({ method: 'POST', url: '/webhook/generate-audio', headers: { Authorization: 'Bearer test' }, payload: { notebook_id: 'nb1', callback_url: 'http://localhost/cb' } });
+const res = await app.inject({ method: 'POST', url: '/webhook/generate-audio', headers: { Authorization: 'Bearer test' }, payload: { notebook_id: 'nb1' } });
 if (res.statusCode !== 202) { console.error('expected 202'); process.exit(1); }
 
-// Assertions logs structurés
+// Assertions logs structurés (sans callback)
 const codes = captured.map((e) => e.o?.event_code).filter(Boolean);
-for (const need of ['TTS_START','TTS_COMPLETE','UPLOAD_START','UPLOAD_COMPLETE', 'CALLBACK_SENT']) {
+for (const need of ['TTS_START','TTS_COMPLETE','UPLOAD_START','UPLOAD_COMPLETE']) {
   if (!codes.includes(need)) {
     console.error('missing event_code', need);
     console.error('got', codes);

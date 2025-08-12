@@ -15,7 +15,10 @@
     "test:e2e": "tsx test/e2e/chat-edge-send.test.ts && tsx test/e2e/process-document-edge.test.ts",
     "test:integration": "tsx test/integration/process-document-step-logs.test.ts && tsx test/integration/generate-audio-step-logs.test.ts",
     "ci:no-mocks": "cross-env NO_MOCKS=1 GPU_ONLY=1 tsx test/e2e/chat-edge-send.test.ts",
-    "prepare:hooks": "pwsh -NoProfile -ExecutionPolicy Bypass -Command \"Copy-Item -Force scripts/git-hooks/pre-push.ps1 .git/hooks/pre-push.ps1\""
+    "prepare:hooks": "pwsh -NoProfile -ExecutionPolicy Bypass -Command \"Copy-Item -Force scripts/git-hooks/pre-push.ps1 .git/hooks/pre-push.ps1; Copy-Item -Force scripts/git-hooks/pre-push .git/hooks/pre-push\"",
+    "ci:anti-mock": "pwsh -NoProfile -ExecutionPolicy Bypass -File ..\\ci\\anti-mock-scan.ps1",
+    "ci:no-mocks-check": "pwsh -NoProfile -ExecutionPolicy Bypass -File ..\\ci\\no-mocks-check.ps1",
+    "ci:local": "pwsh -NoProfile -ExecutionPolicy Bypass -File ..\\ci\\local-ci.ps1"
   },
   "dependencies": {
     "fastify": "^4.28.1",

@@ -85,7 +85,7 @@ Visuel (texte):
   6) Callback vers `process-document-callback` avec statut `completed` ou `failed`.
 
 - Sources additionnelles (copied‑text / multiple‑websites):
-  1) Edge Function poste à l’API: `{ type, notebookId, sourceId, content|urls[] }`.
+  1) Edge Function poste à l’API: `{ type, notebookId, sourceId, title, content|urls[] }`.
   2) `copied-text`: upload `.txt` dans bucket, update `sources`, indexation.
   3) `multiple-websites`: fetch HTML → conversion Markdown + titre → upload + update + indexation.
 
@@ -235,7 +235,7 @@ pwsh -NoProfile -ExecutionPolicy Bypass -File ci\no-mocks-check.ps1
   - Les simulations ne sont autorisées que sous `orchestrator/test/**`.
   - `NO_MOCKS=1` en local et en CI active des contrôles bloquants (scan + E2E): un push/merge échoue si l’environnement réel n’est pas prêt ou si des motifs suspects sont détectés.
   - Toute tentative de contournement (renommer variables, déplacer le code simulé) est contraire à la politique et sera bloquée par les contrôles outillés.
-- CI locale: reproduit les deux contrôles (anti‑mock et no‑mocks) dans le pipeline.
+- CI locale: reproduit les deux contrôles (anti-mock et no-mocks) dans le pipeline.
 
 ## Limitations
 - Le mode No‑Mocks exige DB/Ollama/Whisper/Storage opérationnels localement.

@@ -1,0 +1,23 @@
+name: inter-team-comms-ci
+
+on: [push, pull_request]
+
+jobs:
+  schema-checks:
+    runs-on: ubuntu-latest
+    services:
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping" --health-interval 5s --health-timeout 3s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install ajv-cli
+        run: |
+          npm i -g ajv-cli
+      - name: Validate sample messages against schema
+        run: |
+          echo '{"from_agent":"ci","team":"orange","role":"impl","tm_ids":["1"],"task_id":"1","event":"TASK_START","status":"IN_PROGRESS","timestamp":"2024-01-01T00:00:00Z","correlation_id":"abc12345"}' > sample.json
+          ajv validate -s copernic/documentation/communication/message.schema.json -d sample.json

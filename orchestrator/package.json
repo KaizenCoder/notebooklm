@@ -7,18 +7,20 @@
     "dev": "cross-env GPU_ONLY=1 tsx watch src/index.ts",
     "start": "node dist/index.js",
     "build": "tsc -p tsconfig.json",
+    "db:setup": "cross-env TS_NODE_TRANSPILE_ONLY=1 tsx scripts/setup-db.ts",
     "test": "npm run -s test:contract && npm run -s test:integration && npm run -s test:e2e",
     "test:vitest": "vitest run test/integration/resilience.test.ts test/integration/whisper-adapter.test.ts test/integration/coqui-adapter.test.ts test/integration/storage-adapter.test.ts",
     "test:vitest:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "test:contract": "tsx test/contract/health.test.ts && tsx test/contract/ready.test.ts && tsx test/contract/ready-failures.test.ts && tsx test/contract/auth.test.ts && tsx test/contract/webhooks.test.ts && tsx test/contract/chat-integration.test.ts && tsx test/contract/chat-persist.test.ts && tsx test/contract/chat-contract-strict.test.ts && tsx test/contract/chat-llm-metrics.test.ts && tsx test/contract/generate-notebook-job.test.ts && tsx test/contract/process-document-job.test.ts && tsx test/contract/document-embeddings.test.ts && tsx test/contract/embeddings-dim-mismatch.test.ts && tsx test/contract/process-document-status.test.ts && tsx test/contract/additional-sources.test.ts && tsx test/contract/payload-validation.test.ts && tsx test/contract/idempotency.test.ts && tsx test/contract/idempotency-additional-sources.test.ts && tsx test/contract/idempotency-generate-audio.test.ts && tsx test/contract/chunking-overlap-dims.test.ts && tsx test/contract/chunking-overlap-metadata.test.ts && tsx test/contract/chunking-loc-lines-repeats.test.ts && tsx test/contract/generate-audio-invalid.test.ts && tsx test/contract/generate-audio.test.ts && tsx test/contract/generate-audio-callback.test.ts && tsx test/contract/logging-redaction.test.ts && tsx test/contract/logging-sampling.test.ts && tsx test/contract/gpu-required.test.ts",
+    "test:contract": "tsx test/contract/health.test.ts && tsx test/contract/ready.test.ts && tsx test/contract/ready-failures.test.ts && tsx test/contract/auth.test.ts && tsx test/contract/webhooks.test.ts && tsx test/contract/chat-integration.test.ts && tsx test/contract/chat-persist.test.ts && tsx test/contract/chat-contract-strict.test.ts && tsx test/contract/chat-llm-metrics.test.ts && tsx test/contract/generate-notebook-job.test.ts && tsx test/contract/process-document-job.test.ts && tsx test/contract/document-embeddings.test.ts && tsx test/contract/embeddings-dim-mismatch.test.ts && tsx test/contract/process-document-status.test.ts && tsx test/contract/additional-sources.test.ts && tsx test/contract/payload-validation.test.ts && tsx test/contract/idempotency.test.ts && tsx test/contract/idempotency-additional-sources.test.ts && tsx test/contract/idempotency-generate-audio.test.ts && tsx test/contract/idempotency-concurrency.test.ts && tsx test/contract/chunking-overlap-dims.test.ts && tsx test/contract/chunking-overlap-metadata.test.ts && tsx test/contract/chunking-loc-lines-repeats.test.ts && tsx test/contract/generate-audio-invalid.test.ts && tsx test/contract/generate-audio.test.ts && tsx test/contract/generate-audio-callback.test.ts && tsx test/contract/logging-redaction.test.ts && tsx test/contract/logging-sampling.test.ts && tsx test/contract/gpu-required.test.ts",
     "test:e2e": "tsx test/e2e/chat-edge-send.test.ts && tsx test/e2e/process-document-edge.test.ts",
-    "test:integration": "tsx test/integration/process-document-step-logs.test.ts && tsx test/integration/generate-audio-step-logs.test.ts",
+    "test:integration": "tsx test/integration/process-document-step-logs.test.ts && tsx test/integration/generate-audio-step-logs.test.ts && tsx test/integration/ollama-resilience-adapter.test.ts",
     "ci:no-mocks": "cross-env NO_MOCKS=1 GPU_ONLY=1 tsx test/e2e/chat-edge-send.test.ts",
     "prepare:hooks": "pwsh -NoProfile -ExecutionPolicy Bypass -Command \"Copy-Item -Force scripts/git-hooks/pre-push.ps1 .git/hooks/pre-push.ps1; Copy-Item -Force scripts/git-hooks/pre-push .git/hooks/pre-push\"",
     "ci:anti-mock": "pwsh -NoProfile -ExecutionPolicy Bypass -File ..\\ci\\anti-mock-scan.ps1",
     "ci:no-mocks-check": "pwsh -NoProfile -ExecutionPolicy Bypass -File ..\\ci\\no-mocks-check.ps1",
-    "ci:local": "pwsh -NoProfile -ExecutionPolicy Bypass -File ..\\ci\\local-ci.ps1"
+    "ci:local": "pwsh -NoProfile -ExecutionPolicy Bypass -File ..\\ci\\local-ci.ps1",
+    "test:int:one": "tsx test/integration/ollama-resilience-adapter.test.ts"
   },
   "dependencies": {
     "fastify": "^4.28.1",

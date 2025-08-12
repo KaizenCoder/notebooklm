@@ -18,7 +18,13 @@ const EnvSchema = z.object({
     REDIS_STREAM_HEARTBEAT: z.string().default('coordination_heartbeat'),
     REDIS_STREAM_BLOCKERS: z.string().default('coordination_blockers'),
     REDIS_STREAM_AUDIT_REQ: z.string().default('audit_requests'),
-    REDIS_STREAM_AUDIT_VERDICT: z.string().default('auditeur_compliance')
+    REDIS_STREAM_AUDIT_VERDICT: z.string().default('auditeur_compliance'),
+    COMMS_ORCHESTRATOR_EMIT: z.string().optional(),
+    STREAM_GLOBAL: z.string().default('agents:global'),
+    STREAM_ORCH_INBOX: z.string().default('agents:orchestrator'),
+    STREAM_PAIR_PREFIX: z.string().default('agents:pair:'),
+    COMMS_MODE: z.string().default('multi-stream'),
+    COMMS_COMPAT_LEGACY: z.string().optional()
 });
 export function loadEnv() {
     const parsed = EnvSchema.safeParse(process.env);

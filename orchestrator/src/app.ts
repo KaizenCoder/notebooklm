@@ -77,7 +77,12 @@ export function buildApp(deps?: Partial<AppDeps>): FastifyInstance {
         return reply.code(401).send({ code: 'UNAUTHORIZED', message: 'Invalid Authorization', correlation_id: req.id });
       }
     });
-    instance.addHook('onResponse', async (req, _reply) => {
+    instance.addHook('onResponse', async (req, reply) => {
+      const pct = Number((env as any).LOG_SAMPLE_PCT ?? 100);
+      const samplePct = Number.isFinite(pct) ? Math.min(Math.max(pct, 0), 100) : 100;
+      const alwaysLog = (reply as any)?.statusCode >= 400;
+      const shouldLog = alwaysLog || (Math.random() * 100 < samplePct);
+      if (!shouldLog) return;
       instance.log.info({ correlation_id: (req as any).id, route: (req as any).routerPath ?? (req as any).url, method: (req as any).method, headers: redactHeaders((req as any).headers) }, 'request complete');
     });
   }));

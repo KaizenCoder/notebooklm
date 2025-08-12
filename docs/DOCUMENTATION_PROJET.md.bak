@@ -101,6 +101,7 @@ Visuel (texte):
   2) L’API synthétise (Coqui), uploade dans bucket `audio` et met à jour `notebooks`.
 
 ## 7) API Orchestrator — Design des endpoints
+## 7) API Orchestrator — Design des endpoints
 
 ### Spécification Formelle de l'API (OpenAPI)
 
@@ -181,6 +182,15 @@ Remarque: si vous clonez l’infra d’origine (repo base `local-ai-packaged`), 
 - Supabase: importer `insights-lm-local-package/supabase-migration.sql` (SQL Editor) et copier les dossiers `supabase-functions/*` dans `supabase/volumes/functions/`.
 - Edge Functions: garder le code tel quel; leurs URLs webhook (`*_WEBHOOK_URL`) pointeront vers un futur service `api` (placeholder). Ne pas déployer n8n.
 
+## 9) Déploiement local (guides haut‑niveau)
+- Pré‑requis: Docker Desktop, Supabase local (via le projet de base), Ollama, Whisper ASR et Coqui TTS (containers), Python/Node.
+- Étapes:
+  1) Démarrer l’infra locale (DB, Storage, Ollama, Whisper, Coqui) via `docker-compose` du projet de base.
+  2) Déployer les Edge Functions (fichiers fournis) inchangées.
+  3) Configurer les `*_WEBHOOK_URL` pour pointer vers un futur service `api` (placeholder). Ne pas déployer n8n.
+  4) Importer le SQL `supabase-migration.sql` si nécessaire (indexes, RPC, RLS, buckets).
+  5) Frontend: l’application démarre mais les actions dépendantes des webhooks (ex‑n8n) resteront inactives tant que l’API Orchestrator n’est pas implémentée.
+
 Variante — Modèles Ollama sur D:/modeles_llm (Windows)
 - Dans Docker Desktop, autoriser le partage du disque D: (Settings → Resources → File Sharing).
 - Dans le service `ollama` du `docker-compose.yml` (infra de base), monter le dossier local et définir la variable d’environnement:
@@ -214,32 +224,19 @@ Variante — Modèles Ollama sur D:/modeles_llm (Windows)
   - DB: `createDb` jette si `POSTGRES_DSN` absent.
   - GPU: `GPU_ONLY=1` + probe embeddings obligatoire.
   - Whisper/Storage/Coqui: URLs requises; pannes → `/ready` 503.
-- Hooks Git pre‑push (Windows + Bash/WSL):
-  - Emplacements versionnés: `scripts/git-hooks/pre-push`, `scripts/git-hooks/pre-push.ps1`
-  - Installation locale Windows: `.git/hooks/pre-push.ps1` + `.git/hooks/pre-push.cmd`
-  - Actions: (1) `ci/anti-mock-scan.ps1` (détecte mock/fake/dummy/placeholder/noop) puis (2) `ci/no-mocks-check.ps1` (E2E minimal avec `NO_MOCKS=1`)
-- Commandes manuelles:
+- Hook Git pre‑push obligatoire:
+  - Emplacement: `scripts/git-hooks/pre-push`
+  - Action: exécute `ci/no-mocks-check.ps1` qui lance un E2E minimal avec `NO_MOCKS=1` (échoue si dépendances réelles indisponibles).
+- Commande manuelle:
 ```powershell
-pwsh -NoProfile -ExecutionPolicy Bypass -File ci\anti-mock-scan.ps1
 pwsh -NoProfile -ExecutionPolicy Bypass -File ci\no-mocks-check.ps1
 ```
 
-#TEST: ci/anti-mock-scan.ps1
 #TEST: ci/no-mocks-check.ps1
-#TEST: .git/hooks/pre-push.ps1
-
-### 12ter) Anti‑Mock & Gouvernance de non‑contournement
-- Objectif: empêcher le « renommage pour contourner » et garantir l’exécution réelle en local.
-- Règles:
-  - Interdiction d’introduire ou de conserver des implémentations « mock/fake/dummy/placeholder/noop » dans `orchestrator/src`.
-  - Les simulations ne sont autorisées que sous `orchestrator/test/**`.
-  - `NO_MOCKS=1` en local et en CI active des contrôles bloquants (scan + E2E): un push/merge échoue si l’environnement réel n’est pas prêt ou si des motifs suspects sont détectés.
-  - Toute tentative de contournement (renommer variables, déplacer le code simulé) est contraire à la politique et sera bloquée par les contrôles outillés.
-- CI locale: reproduit les deux contrôles (anti‑mock et no‑mocks) dans le pipeline.
 
 ## Limitations
-- Le mode No‑Mocks exige DB/Ollama/Whisper/Storage opérationnels localement.
-- Le scan anti‑mock est lexicographique (mots clés); il peut produire des faux positifs à whitelister si nécessaire (ajouter des exceptions documentées côté tests uniquement).
+- Le mode No‑Mocks nécessite que DB/Ollama/Whisper/Storage soient démarrés localement.
+- Le hook pre‑push peut être désactivé localement; l’intégration CI doit reproduire ce contrôle.
 
 ## 13) Performances & limites
 - Embeddings/LLM locaux: dépendants du matériel (CPU/GPU, VRAM).

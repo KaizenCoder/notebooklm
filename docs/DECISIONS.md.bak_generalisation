@@ -1,0 +1,27 @@
+# Journal des Décisions (liées à Task‑Master)
+
+Objet
+- Cadrer les revues de parité et la gouvernance. Toute décision est traçable via un ID Task‑Master et des références aux dépôts originaux.
+
+Modèle d’entrée (copier/coller)
+- ID(s) Task‑Master: TM‑__/__.__
+- Date/Heure: __/__/____ __:__
+- Sujet: (ex.: Aligner `top_k=5` pour RAG)
+- Type: [Parité | Technique | Produit | Sécurité | Perf]
+- Contexte:
+  - Réfs internes: `docs/PRD.md#...`, `docs/ORCHESTRATOR_IMPLEMENTATION_PLAN.md#...`
+  - Réfs originales: `docs/clone/...`
+- Décision:
+  - Énoncé clair et testable.
+- Justification:
+  - Preuves de parité (payloads/headers/status, side‑effects DB, UI), mesures/perfs, contraintes.
+- Impact:
+  - Code, tests, documentation, perf/sécurité, données.
+- Actions de suivi:
+  - Tâches Task‑Master à créer/mettre à jour.
+
+Index (résumé des entrées)
+- [ ] (remplir à mesure)
+
+Historique détaillé
+- [ ] (ajouter les entrées ci‑dessus au fil des revues)

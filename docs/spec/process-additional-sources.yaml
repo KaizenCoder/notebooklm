@@ -1,0 +1,102 @@
+paths:
+  /webhook/process-additional-sources:
+    post:
+      summary: Traiter l'ajout de texte ou d'URLs
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - $ref: './openapi.yaml#/components/parameters/IdempotencyKeyHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - $ref: "./openapi.yaml#/components/schemas/CopiedTextPayload"
+                - $ref: "./openapi.yaml#/components/schemas/MultipleWebsitesPayload"
+            discriminator:
+              propertyName: type
+              mapping:
+                copied-text: "./openapi.yaml#/components/schemas/CopiedTextPayload"
+                multiple-websites: "./openapi.yaml#/components/schemas/MultipleWebsitesPayload"
+            examples:
+              copiedText:
+                summary: Copied text payload
+                value:
+                  type: "copied-text"
+                  notebookId: "e7b1b2c8-8a7f-4c7a-9a1e-1234567890ab"
+                  title: "Titre fourni"
+                  content: "Texte collé ..."
+                  sourceId: "c0ffee00-0000-0000-0000-000000000003"
+                  timestamp: "2025-08-11T08:00:00.000Z"
+              multipleWebsites:
+                summary: Multiple websites payload
+                value:
+                  type: "multiple-websites"
+                  notebookId: "e7b1b2c8-8a7f-4c7a-9a1e-1234567890ab"
+                  urls: ["https://exemple1", "https://exemple2"]
+                  sourceIds:
+                    - "c0ffee00-0000-0000-0000-000000000001"
+                    - "c0ffee00-0000-0000-0000-000000000002"
+                  timestamp: "2025-08-11T08:00:00.000Z"
+
+      responses:
+        '200':
+          description: Sources additionnelles traitées avec succès.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "multiple-websites data sent to webhook successfully"
+                  webhookResponse:
+                    type: string
+                    example: "OK"
+              examples:
+                multipleWebsites:
+                  summary: Succès (multiple-websites)
+                  value:
+                    success: true
+                    message: "multiple-websites data sent to webhook successfully"
+                    webhookResponse: "OK"
+                copiedText:
+                  summary: Succès (copied-text)
+                  value:
+                    success: true
+                    message: "copied-text data sent to webhook successfully"
+                    webhookResponse: "OK"
+        '400':
+          description: Requête invalide.
+          content:
+            application/json:
+              schema:
+                $ref: './openapi.yaml#/components/schemas/ErrorResponse'
+        '401':
+          description: Non autorisé.
+          content:
+            application/json:
+              schema:
+                $ref: './openapi.yaml#/components/schemas/ErrorResponse'
+        '403':
+          description: Accès interdit (droits insuffisants).
+          content:
+            application/json:
+              schema:
+                $ref: './openapi.yaml#/components/schemas/ErrorResponse'
+        '422':
+          description: Requête non traitable (champ manquant/invalide).
+          content:
+            application/json:
+              schema:
+                $ref: './openapi.yaml#/components/schemas/ErrorResponse'
+        '500':
+          description: Erreur interne serveur.
+          content:
+            application/json:
+              schema:
+                $ref: './openapi.yaml#/components/schemas/ErrorResponse'

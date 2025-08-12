@@ -1,7 +1,16 @@
 {
-  "projectRoot": ".",
-  "defaultTasksFile": ".taskmaster/tasks.json",
-  "ui": {
-    "showAsciiHeader": true
+  "defaultFile": ".taskmaster/tasks/tasks.json",
+  "statuses": [
+    "pending",
+    "in-progress",
+    "review",
+    "done",
+    "deferred",
+    "cancelled"
+  ],
+  "idSeparator": ".",
+  "showSubtasksInline": true,
+  "global": {
+    "defaultTag": "master"
   }
 }

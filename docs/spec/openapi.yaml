@@ -1,0 +1,178 @@
+openapi: 3.0.0
+info:
+  title: API Orchestrator for InsightsLM Local
+  description: |
+    Cette API remplace les workflows n8n pour le projet InsightsLM Local.
+    Elle orchestre les services d'IA locaux (Ollama, Whisper, Coqui) et interagit avec une base de données PostgreSQL locale.
+    Ceci est le document racine qui référence les spécifications de chaque endpoint.
+  version: "1.0.0"
+
+servers:
+  - url: "{scheme}://{host}:{port}"
+    description: Serveur de l'API Orchestrator sur le réseau interne Docker
+    variables:
+      scheme:
+        enum:
+          - http
+        default: http
+      host:
+        default: api
+      port:
+        default: "8000"
+
+# Définition des chemins en référençant les fichiers de spécification individuels
+paths:
+  /webhook/chat:
+    $ref: './chat.yaml#/paths/~1webhook~1chat'
+  /webhook/process-document:
+    $ref: './process-document.yaml#/paths/~1webhook~1process-document'
+  /webhook/process-additional-sources:
+    $ref: './process-additional-sources.yaml#/paths/~1webhook~1process-additional-sources'
+  /webhook/generate-notebook-content:
+    $ref: './generate-notebook-content.yaml#/paths/~1webhook~1generate-notebook-content'
+  /webhook/generate-audio:
+    $ref: './generate-audio.yaml#/paths/~1webhook~1generate-audio'
+  /health:
+    get:
+      summary: Vérifie la disponibilité de base du service
+      responses:
+        '200':
+          description: Service actif
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+  /ready:
+    get:
+      summary: Vérifie que toutes les dépendances sont prêtes (DB, Ollama, modèles, GPU)
+      responses:
+        '200':
+          description: Service prêt
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ready:
+                    type: boolean
+                    example: true
+        '503':
+          description: Dépendances manquantes/non prêtes
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+# Définition des composants partagés
+components:
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: Authorization
+      description: "Clé d'API partagée (secret) pour l'authentification entre les Edge Functions et l'Orchestrateur."
+
+  schemas:
+    ErrorResponse:
+      type: object
+      properties:
+        code:
+          type: string
+          description: Un code d'erreur interne standardisé.
+          example: "INVALID_REQUEST"
+        message:
+          type: string
+          description: Un message d'erreur clair et lisible.
+          example: "Le champ 'session_id' est manquant."
+        details:
+          type: object
+          additionalProperties: true
+          description: "Objet optionnel pour des détails d'erreur supplémentaires."
+        correlation_id:
+          type: string
+          description: Identifiant de corrélation de la requête (traçabilité logs).
+          example: "1b2c3d4e-5f6a-7b8c-9d00-112233445566"
+
+    SuccessResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: "Operation accepted"
+
+    Citation:
+      type: object
+      properties:
+        source_id:
+          type: string
+          format: uuid
+          description: L'ID de la source d'où provient la citation.
+        lines:
+          type: object
+          properties:
+            from:
+              type: integer
+            to:
+              type: integer
+          description: Les numéros de ligne de la citation dans la source.
+
+  parameters:
+    IdempotencyKeyHeader:
+      name: Idempotency-Key
+      in: header
+      description: Clé unique pour garantir l'idempotence de la requête d'ingestion (honorée sur /webhook/process-document et /webhook/generate-audio).
+      required: false
+      schema:
+        type: string
+        format: uuid
+    CopiedTextPayload:
+      type: object
+      properties:
+        type:
+          type: string
+          enum: ["copied-text"]
+        notebookId:
+          type: string
+          format: uuid
+        title:
+          type: string
+        content:
+          type: string
+        sourceId:
+          type: string
+          format: uuid
+        timestamp:
+          type: string
+          format: date-time
+      required: [type, notebookId, title, content, sourceId]
+
+    MultipleWebsitesPayload:
+      type: object
+      properties:
+        type:
+          type: string
+          enum: ["multiple-websites"]
+        notebookId:
+          type: string
+          format: uuid
+        urls:
+          type: array
+          items:
+            type: string
+            format: uri
+        sourceIds:
+          type: array
+          items:
+            type: string
+            format: uuid
+        timestamp:
+          type: string
+          format: date-time
+      required: [type, notebookId, urls, sourceIds]

@@ -1,0 +1,102 @@
+paths:
+  /webhook/chat:
+    post:
+      summary: Recevoir un message et retourner une réponse RAG
+      security:
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                session_id:
+                  type: string
+                  format: uuid
+                  description: L'ID du notebook qui sert de session de chat.
+                message:
+                  type: string
+                  description: Le message de l'utilisateur.
+                user_id:
+                  type: string
+                  format: uuid
+                  description: L'ID de l'utilisateur authentifié.
+                timestamp:
+                  type: string
+                  format: date-time
+                  description: L'horodatage du message.
+              required:
+                - session_id
+                - message
+                - user_id
+            example:
+              session_id: "e7b1b2c8-8a7f-4c7a-9a1e-1234567890ab"
+              message: "Quel est le résumé du document ?"
+              user_id: "5f4d3c2b-1a09-4e87-b123-abcdef012345"
+              timestamp: "2025-08-11T08:00:00.000Z"
+      responses:
+        '200':
+          description: Réponse RAG générée avec succès.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      output:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            text:
+                              type: string
+                            citations:
+                              type: array
+                              items:
+                                $ref: './openapi.yaml#/components/schemas/Citation'
+              examples:
+                default:
+                  summary: Réponse RAG avec citations
+                  value:
+                    success: true
+                    data:
+                      output:
+                        - text: "Résumé ... [1] [2]"
+                          citations:
+                            - source_id: "c0ffee00-0000-0000-0000-000000000001"
+                              lines: { from: 10, to: 18 }
+        '400':
+          description: Requête invalide.
+          content:
+            application/json:
+              schema:
+                $ref: './openapi.yaml#/components/schemas/ErrorResponse'
+        '401':
+          description: Non autorisé.
+          content:
+            application/json:
+              schema:
+                $ref: './openapi.yaml#/components/schemas/ErrorResponse'
+        '403':
+          description: Accès interdit (droits insuffisants).
+          content:
+            application/json:
+              schema:
+                $ref: './openapi.yaml#/components/schemas/ErrorResponse'
+        '422':
+          description: Requête non traitable (champ manquant/invalide).
+          content:
+            application/json:
+              schema:
+                $ref: './openapi.yaml#/components/schemas/ErrorResponse'
+        '500':
+          description: Erreur interne serveur.
+          content:
+            application/json:
+              schema:
+                $ref: './openapi.yaml#/components/schemas/ErrorResponse'

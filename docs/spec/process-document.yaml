@@ -1,0 +1,90 @@
+paths:
+  /webhook/process-document:
+    post:
+      summary: Lancer le traitement asynchrone d'un document
+      description: |
+        Contrat principal aligné sur les Edge Functions d'origine.
+        Phase transitoire: l'orchestrateur accepte temporairement un payload "legacy" `{ notebookId, sourceId, text }` pour compatibilité locale, mais le contrat supporté et cible reste l'OpenAPI ci‑dessous.
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - $ref: './openapi.yaml#/components/parameters/IdempotencyKeyHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                source_id:
+                  type: string
+                  format: uuid
+                file_url:
+                  type: string
+                  format: uri
+                  description: URL signée pour télécharger le fichier depuis le storage.
+                file_path:
+                  type: string
+                  description: Chemin du fichier dans le storage.
+                source_type:
+                  type: string
+                  enum: ["pdf", "txt", "audio"]
+                callback_url:
+                  type: string
+                  format: uri
+                  description: URL de l'Edge Function à appeler une fois le traitement terminé.
+              required:
+                - source_id
+                - file_url
+                - file_path
+                - source_type
+                - callback_url
+            example:
+              source_id: "1d2c3b4a-5678-49ab-9cde-001122334455"
+              file_url: "http://localhost:8000/storage/v1/object/public/sources/notebooks/1d2c/sources/doc.pdf"
+              file_path: "notebooks/1d2c/sources/doc.pdf"
+              source_type: "pdf"
+              callback_url: "http://localhost:8000/functions/v1/process-document-callback"
+      responses:
+        '202':
+          description: Traitement accepté et démarré en arrière-plan.
+          content:
+            application/json:
+              schema:
+                $ref: './openapi.yaml#/components/schemas/SuccessResponse'
+              examples:
+                accepted:
+                  summary: Acceptation du traitement
+                  value:
+                    success: true
+                    message: "Document processing initiated"
+        '400':
+          description: Requête invalide.
+          content:
+            application/json:
+              schema:
+                $ref: './openapi.yaml#/components/schemas/ErrorResponse'
+        '401':
+          description: Non autorisé.
+          content:
+            application/json:
+              schema:
+                $ref: './openapi.yaml#/components/schemas/ErrorResponse'
+        '403':
+          description: Accès interdit (droits insuffisants).
+          content:
+            application/json:
+              schema:
+                $ref: './openapi.yaml#/components/schemas/ErrorResponse'
+        '422':
+          description: Requête non traitable (champ manquant/invalide).
+          content:
+            application/json:
+              schema:
+                $ref: './openapi.yaml#/components/schemas/ErrorResponse'
+        '500':
+          description: Erreur interne serveur.
+          content:
+            application/json:
+              schema:
+                $ref: './openapi.yaml#/components/schemas/ErrorResponse'

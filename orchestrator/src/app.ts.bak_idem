@@ -1,0 +1,268 @@
+import Fastify, { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
+import fp from 'fastify-plugin';
+import { loadEnv, Env } from './env.js';
+import { createDb } from './services/db.js';
+import { createOllama } from './services/ollama.js';
+import { createSupabase } from './services/supabase.js';
+import { createJobs } from './services/jobs.js';
+import { createDocumentProcessor } from './services/document.js';
+import { createAudio } from './services/audio.js';
+import { createStorage } from './services/storage.js';
+import { createIdempotencyStore } from './services/idempotency.js';
+import { request as undiciRequest } from 'undici';
+
+export type AppDeps = {
+  env: Env;
+  db: ReturnType<typeof createDb>;
+  ollama: ReturnType<typeof createOllama>;
+  supabase: ReturnType<typeof createSupabase>;
+  jobs: ReturnType<typeof createJobs>;
+  docProc: ReturnType<typeof createDocumentProcessor>;
+};
+
+export function buildApp(deps?: Partial<AppDeps>): FastifyInstance {
+  const env = deps?.env ?? loadEnv();
+  const app = Fastify({ logger: true });
+
+  const db = deps?.db ?? createDb(env);
+  const ollama = deps?.ollama ?? createOllama(env);
+  const supabase = (deps as any)?.supabase ?? createSupabase(env);
+  const jobs = (deps as any)?.jobs ?? createJobs();
+  const docProc = (deps as any)?.docProc ?? createDocumentProcessor(env, { ollama, db });
+  const audio = (deps as any)?.audio ?? createAudio(env);
+  const storage = (deps as any)?.storage ?? createStorage(env);
+  const idem = createIdempotencyStore();
+
+  app.decorate('env', env);
+  app.decorate('db', db);
+  app.decorate('ollama', ollama);
+  app.decorate('supabase', supabase);
+  app.decorate('jobs', jobs);
+  app.decorate('docProc', docProc);
+  app.decorate('audio', audio);
+  app.decorate('storage', storage);
+
+  app.register(fp(async (instance: FastifyInstance) => {
+    instance.addHook('preValidation', async (req: FastifyRequest, reply: FastifyReply) => {
+      const url = (req as any).routeOptions?.url as string | undefined;
+      if (!url || !url.startsWith('/webhook')) return;
+      const header = req.headers['authorization'];
+      if (!header || header !== env.NOTEBOOK_GENERATION_AUTH) {
+        return reply.code(401).send({ code: 'UNAUTHORIZED', message: 'Invalid Authorization' });
+      }
+    });
+  }));
+
+  app.get('/health', async () => ({ status: 'ok' }));
+
+  app.get('/ready', async (req: FastifyRequest, reply: FastifyReply) => {
+    const details: Record<string, unknown> = {};
+    try { await db.ping(); details.db = 'ok'; } catch (e) { details.db = { error: String(e) }; }
+    try {
+      const tags = await ollama.listModels();
+      details.ollama = 'ok';
+      const need = [env.OLLAMA_EMBED_MODEL, env.OLLAMA_LLM_MODEL].filter(Boolean) as string[];
+      const names = (tags as any).models?.map((m: any) => m.name) ?? [];
+      const missing = need.filter((m) => !names.includes(m));
+      details.models = missing.length ? { missing } : 'ok';
+      if (env.GPU_ONLY === '1' && env.OLLAMA_EMBED_MODEL) {
+        try { const ok = await ollama.checkGpu(env.OLLAMA_EMBED_MODEL); details.gpu = ok ? 'ok' : { error: 'embedding probe failed or timed out' }; } catch (e) { details.gpu = { error: String(e) }; }
+      }
+    } catch (e) { details.ollama = { error: String(e) }; }
+    const gpuOk = env.GPU_ONLY === '1' ? details.gpu === 'ok' : true;
+    const modelsOk = details.models === 'ok';
+    const ok = details.db === 'ok' && details.ollama === 'ok' && modelsOk && gpuOk;
+    if (!ok) return reply.code(503).send({ ready: false, details });
+    return { ready: true, details };
+  });
+
+  app.setErrorHandler((err, req, reply) => {
+    const status = (err as any)?.statusCode ?? 500;
+    const code = status === 401 ? 'UNAUTHORIZED' : status === 422 ? 'UNPROCESSABLE_ENTITY' : status === 400 ? 'BAD_REQUEST' : 'INTERNAL_ERROR';
+    const message = (err as any)?.message ?? 'Internal Server Error';
+    reply.code(status).send({ code, message, details: undefined, correlation_id: req.id });
+  });
+
+  app.post('/webhook/chat', async (req: FastifyRequest) => {
+    const body: any = (req as any).body ?? {};
+    let messages: Array<{ role: string; content: string }> = [];
+    let notebookId: string | undefined;
+    const userId: string | undefined = typeof body.user_id === 'string' ? body.user_id : undefined;
+    const timestampIso: string | undefined = typeof body.timestamp === 'string' ? body.timestamp : undefined;
+    if (typeof body.session_id === 'string' && typeof body.message === 'string' && body.message.length) {
+      messages = [{ role: 'user', content: body.message }];
+      notebookId = body.session_id;
+    } else {
+      messages = Array.isArray(body.messages) ? body.messages : [{ role: 'user', content: body.message }].filter(Boolean);
+      notebookId = body.notebookId ?? body.session_id;
+    }
+    if (env.OLLAMA_LLM_MODEL && messages.length) {
+      let citations: any[] = [];
+      try {
+        const query = messages[messages.length - 1]?.content as string | undefined;
+        if (query) citations = (await supabase.matchDocuments(query, notebookId)).slice(0, 5);
+      } catch {}
+      const chatRes = await ollama.chat(env.OLLAMA_LLM_MODEL, messages);
+      const text = chatRes?.message?.content ?? '';
+      try {
+        const lastUser = messages[messages.length - 1];
+        if (lastUser?.role && lastUser?.content) {
+          if ((db as any).insertChatHistory) {
+            await (db as any).insertChatHistory(notebookId ?? null, 'user', lastUser.content, userId ?? null, timestampIso ?? undefined);
+          } else {
+            await db.insertMessage(notebookId ?? null, lastUser.role, lastUser.content);
+          }
+        }
+        if (text) {
+          if ((db as any).insertChatHistory) {
+            await (db as any).insertChatHistory(notebookId ?? null, 'assistant', text, null, undefined);
+          } else {
+            await db.insertMessage(notebookId ?? null, 'assistant', text);
+          }
+        }
+      } catch {}
+      return { success: true, data: { output: [{ text, citations }] } };
+    }
+    return { success: true, data: { output: [] } };
+  });
+
+  app.post('/webhook/process-document', async (req: FastifyRequest, reply: FastifyReply) => {
+    const body: any = (req as any).body ?? {};
+    const normalized = {
+      sourceId: body.sourceId ?? body.source_id,
+      fileUrl: body.fileUrl ?? body.file_url,
+      filePath: body.filePath ?? body.file_path,
+      sourceType: body.sourceType ?? body.source_type,
+      callbackUrl: body.callbackUrl ?? body.callback_url,
+      notebookId: body.notebookId ?? body.notebook_id,
+      text: body.text
+    } as any;
+
+    // OpenAPI strict (optionnel): si un des champs OpenAPI est présent, les autres sont requis
+    const anyOpenApiField = [normalized.sourceId, normalized.fileUrl, normalized.filePath, normalized.sourceType, normalized.callbackUrl].some(v => typeof v === 'string' && v.length > 0);
+    if (anyOpenApiField) {
+      if (!normalized.sourceId || !normalized.fileUrl || !normalized.filePath || !normalized.sourceType || !normalized.callbackUrl) {
+        return reply.code(422).send({ code: 'UNPROCESSABLE_ENTITY', message: 'Missing required fields for OpenAPI payload', correlation_id: (req as any).id });
+      }
+    }
+
+    const idemKey = (req.headers['idempotency-key'] as string|undefined)?.trim();
+    if (idemKey) { const cached = idem.get(idemKey); if (cached) return reply.code(cached.statusCode).send(cached.body); idem.begin(idemKey); }
+
+    try { await app.docProc.processDocument({ notebookId: normalized.notebookId, sourceId: normalized.sourceId, text: normalized.text, sourceType: normalized.sourceType, fileUrl: normalized.fileUrl }); } catch {}
+
+    app.jobs.add('process-document', async () => {
+      try {
+        await app.docProc.processDocument({ notebookId: normalized.notebookId, sourceId: normalized.sourceId, text: normalized.text, sourceType: normalized.sourceType, fileUrl: normalized.fileUrl });
+        if (normalized.callbackUrl) { try { await undiciRequest(normalized.callbackUrl, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ source_id: normalized.sourceId, status: 'completed' }) }); } catch {} }
+      } catch (e) {
+        try { if ((app.db as any).updateSourceStatus && normalized.sourceId) await (app.db as any).updateSourceStatus(normalized.sourceId, 'failed'); } catch {}
+        if (normalized.callbackUrl) { try { await undiciRequest(normalized.callbackUrl, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ source_id: normalized.sourceId, status: 'failed' }) }); } catch {} }
+      }
+    }, {});
+
+    const response = { success: true, message: 'Document processing initiated' };
+    if (idemKey) idem.complete(idemKey, { statusCode: 202, body: response });
+    return reply.code(202).send(response);
+  });
+
+  app.post('/webhook/process-additional-sources', async (req: FastifyRequest, reply: FastifyReply) => {
+    const body: any = (req as any).body ?? {};
+    const type = body?.type;
+
+    const idemKey = (req.headers['idempotency-key'] as string|undefined)?.trim();
+    if (idemKey) { const cached = idem.get(idemKey); if (cached) return reply.code(cached.statusCode).send(cached.body); idem.begin(idemKey); }
+
+    // Validation conditionnelle selon OpenAPI (ne déclenche pas pour anciens payloads sans type)
+    if (type === 'copied-text') {
+      if (!body.notebookId || !body.content || !(body.sourceId || (Array.isArray(body.sourceIds) && body.sourceIds.length))) {
+        const res = { code: 'UNPROCESSABLE_ENTITY', message: 'Invalid copied-text payload' };
+        if (idemKey) idem.complete(idemKey, { statusCode: 422, body: res });
+        return reply.code(422).send(res);
+      }
+      const sourceId = body.sourceId ?? (body.sourceIds?.[0]);
+      await app.docProc.processDocument({ notebookId: body.notebookId, sourceId, text: body.content, sourceType: 'txt' });
+      const res = { success: true, message: 'copied-text data sent to webhook successfully', webhookResponse: 'OK' };
+      if (idemKey) idem.complete(idemKey, { statusCode: 200, body: res });
+      return reply.code(200).send(res);
+    } else if (type === 'multiple-websites') {
+      if (!body.notebookId || !Array.isArray(body.urls) || !Array.isArray(body.sourceIds) || body.urls.length === 0) {
+        const res = { code: 'UNPROCESSABLE_ENTITY', message: 'Invalid multiple-websites payload' };
+        if (idemKey) idem.complete(idemKey, { statusCode: 422, body: res });
+        return reply.code(422).send(res);
+      }
+      const urls: string[] = body.urls ?? [];
+      const sourceIds: string[] = body.sourceIds ?? [];
+      for (let i = 0; i < urls.length; i++) {
+        const sid = sourceIds[i] ?? sourceIds[0];
+        await app.docProc.processDocument({ notebookId: body.notebookId, sourceId: sid, text: `Fetched: ${urls[i]}`, sourceType: 'txt' });
+      }
+      const res = { success: true, message: 'multiple-websites data sent to webhook successfully', webhookResponse: 'OK' };
+      if (idemKey) idem.complete(idemKey, { statusCode: 200, body: res });
+      return reply.code(200).send(res);
+    }
+
+    const res = { success: true, message: 'Processed additional sources', webhookResponse: {} };
+    if (idemKey) idem.complete(idemKey, { statusCode: 200, body: res });
+    return reply.code(200).send(res);
+  });
+
+  app.post('/webhook/generate-notebook-content', async (req: FastifyRequest, reply: FastifyReply) => {
+    const body: any = (req as any).body ?? {};
+    const notebookId = body?.notebookId ?? body?.id ?? null;
+    app.jobs.add('generate-notebook', async () => {
+      try { if ((app.db as any).updateNotebookStatus) { await (app.db as any).updateNotebookStatus(notebookId, 'generating'); await (app.db as any).updateNotebookStatus(notebookId, 'ready'); } } catch {}
+    }, {});
+    return reply.code(202).send({ success: true, message: 'Notebook generation started in background' });
+  });
+
+  app.post('/webhook/generate-audio', async (req: FastifyRequest, reply: FastifyReply) => {
+    const body: any = (req as any).body ?? {};
+    const notebookId: string | null = body?.notebook_id ?? null;
+    const callbackUrl: string | null = body?.callback_url ?? null;
+
+    const idemKey = (req.headers['idempotency-key'] as string|undefined)?.trim();
+    if (idemKey) { const cached = idem.get(idemKey); if (cached) return reply.code(cached.statusCode).send(cached.body); idem.begin(idemKey); }
+
+    try { if ((db as any).updateNotebookStatus && notebookId) await (db as any).updateNotebookStatus(notebookId, 'generating'); } catch {}
+
+    jobs.add('generate-audio', async () => {
+      try {
+        const bin = await (app as any).audio.synthesize('overview text');
+        const path = `audio/${notebookId ?? 'unknown'}.mp3`;
+        const audioUrl = await (app as any).storage.upload(bin, path);
+        if ((db as any).setNotebookAudio && notebookId) await (db as any).setNotebookAudio(notebookId, audioUrl);
+        if ((db as any).updateNotebookStatus && notebookId) await (db as any).updateNotebookStatus(notebookId, 'completed');
+        if (callbackUrl) {
+          for (let i = 0; i < 2; i++) {
+            try {
+              await undiciRequest(callbackUrl, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ notebook_id: notebookId, audio_url: audioUrl, status: 'success' }) });
+              break;
+            } catch {}
+          }
+        }
+      } catch (e) {
+        try { if ((db as any).updateNotebookStatus && notebookId) await (db as any).updateNotebookStatus(notebookId, 'failed'); } catch {}
+        if (callbackUrl) { try { await undiciRequest(callbackUrl, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ notebook_id: notebookId, status: 'failed' }) }); } catch {} }
+      }
+    }, {});
+
+    const response = { success: true, message: 'Audio generation started' };
+    if (idemKey) idem.complete(idemKey, { statusCode: 202, body: response });
+    return reply.code(202).send(response);
+  });
+
+  return app;
+}
+
+declare module 'fastify' {
+  interface FastifyInstance {
+    env: Env;
+    db: ReturnType<typeof createDb>;
+    ollama: ReturnType<typeof createOllama>;
+    supabase: ReturnType<typeof createSupabase>;
+    jobs: ReturnType<typeof createJobs>;
+    docProc: ReturnType<typeof createDocumentProcessor>;
+    audio: ReturnType<typeof createAudio>;
+  }
+}

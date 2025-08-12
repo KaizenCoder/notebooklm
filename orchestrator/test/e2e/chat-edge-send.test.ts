@@ -1,0 +1,70 @@
+import { buildApp } from '../../src/app.ts';
+import Fastify from 'fastify';
+import { request as undiciRequest } from 'undici';
+
+// E2E smoke: simulate Edge Function send-chat-message forwarding to orchestrator
+
+const env = {
+  PORT: '0',
+  NOTEBOOK_GENERATION_AUTH: 'Bearer test',
+  OLLAMA_BASE_URL: 'http://127.0.0.1:11434',
+  OLLAMA_LLM_MODEL: 'qwen3:8b-q4_K_M'
+} as any;
+
+const fakeOllama = {
+  listModels: async () => ({ models: [] }),
+  checkGpu: async () => true,
+  chat: async (_model: string, _messages: any[]) => ({ message: { content: 'E2E OK' } })
+};
+
+const fakeSupabase = { matchDocuments: async () => ([] as any[]) };
+const app = buildApp({ env, supabase: fakeSupabase as any, ollama: fakeOllama as any });
+
+// Edge function mock
+const edge = Fastify({ logger: false });
+edge.post('/functions/v1/send-chat-message', async (req, reply) => {
+  const payload: any = req.body ?? {};
+  const res = await app.inject({
+    method: 'POST',
+    url: '/webhook/chat',
+    headers: { Authorization: env.NOTEBOOK_GENERATION_AUTH },
+    payload: {
+      session_id: payload.session_id,
+      message: payload.message,
+      user_id: payload.user_id,
+      timestamp: payload.timestamp,
+    }
+  });
+  reply.code(res.statusCode).headers(res.headers).send(res.body);
+});
+
+await edge.listen({ port: 0, host: '127.0.0.1' });
+const address = edge.server.address();
+const port = typeof address === 'object' && address ? address.port : 0;
+
+const payload = {
+  session_id: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+  message: 'E2E ping',
+  user_id: 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
+  timestamp: new Date().toISOString()
+};
+
+const res = await undiciRequest(`http://127.0.0.1:${port}/functions/v1/send-chat-message`, {
+  method: 'POST',
+  headers: { 'content-type': 'application/json' },
+  body: JSON.stringify(payload)
+});
+
+if (res.statusCode !== 200) {
+  console.error('E2E send-chat-message should be 200, got', res.statusCode, await res.body.text());
+  process.exit(1);
+}
+
+const body = await res.body.json();
+if (!body?.success || !Array.isArray(body?.data?.output)) {
+  console.error('E2E body shape invalid', body);
+  process.exit(1);
+}
+
+await edge.close();
+console.log('PASS chat-edge-send-e2e');

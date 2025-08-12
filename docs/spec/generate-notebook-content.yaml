@@ -1,0 +1,75 @@
+paths:
+  /webhook/generate-notebook-content:
+    post:
+      summary: Lancer la génération de contenu pour un notebook
+      security:
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                sourceType:
+                  type: string
+                  enum: ["pdf", "txt", "audio", "web"]
+                notebookId:
+                  type: string
+                  format: uuid
+                filePath:
+                  type: string
+                  description: "Optionnel, si la source est un fichier."
+                content:
+                  type: string
+                  description: "Optionnel, si le contenu est fourni directement."
+              required:
+                - sourceType
+                - notebookId
+            example:
+              sourceType: "pdf"
+              notebookId: "e7b1b2c8-8a7f-4c7a-9a1e-1234567890ab"
+              filePath: "notebooks/e7b1/sources/doc.pdf"
+      responses:
+        '202':
+          description: Requête acceptée, la génération a démarré en arrière-plan.
+          content:
+            application/json:
+              schema:
+                $ref: './openapi.yaml#/components/schemas/SuccessResponse'
+              examples:
+                accepted:
+                  summary: Génération notebook démarrée
+                  value:
+                    success: true
+                    message: "Notebook generation started in background"
+        '400':
+          description: Requête invalide.
+          content:
+            application/json:
+              schema:
+                $ref: './openapi.yaml#/components/schemas/ErrorResponse'
+        '401':
+          description: Non autorisé.
+          content:
+            application/json:
+              schema:
+                $ref: './openapi.yaml#/components/schemas/ErrorResponse'
+        '403':
+          description: Accès interdit (droits insuffisants).
+          content:
+            application/json:
+              schema:
+                $ref: './openapi.yaml#/components/schemas/ErrorResponse'
+        '422':
+          description: Requête non traitable (champ manquant/invalide).
+          content:
+            application/json:
+              schema:
+                $ref: './openapi.yaml#/components/schemas/ErrorResponse'
+        '500':
+          description: Erreur interne serveur.
+          content:
+            application/json:
+              schema:
+                $ref: './openapi.yaml#/components/schemas/ErrorResponse'

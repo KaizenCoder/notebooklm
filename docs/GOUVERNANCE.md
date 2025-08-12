@@ -33,9 +33,12 @@ Livrables et traçabilité
 - `NO_MOCKS=1` (local/CI) active deux contrôles bloquants:
   - Scan lexical anti‑mock: `ci/anti-mock-scan.ps1`.
   - E2E réel: `ci/no-mocks-check.ps1` (GPU_ONLY=1, DB/Ollama/Whisper/Storage requis).
-- Hooks Git pre‑push (Windows + Bash/WSL): exécutent scan puis E2E; blocage si violations ou environnement non prêt.
+- Hooks Git pre‑push standardisés:
+  - Emplacements versionnés: `scripts/git-hooks/pre-push` (wrapper) et `scripts/git-hooks/pre-push.ps1` (PowerShell fail‑safe).
+  - Exécution: le wrapper appelle le `.ps1`; si les scripts `ci/*.ps1` sont absents en local, le hook passe en "skip" explicite; sinon il exécute et bloque en cas d’échec.
+  - Installation locale Windows: `.git/hooks/pre-push.ps1` + `.git/hooks/pre-push.cmd` si besoin; `core.hooksPath` est pointé sur `scripts/git-hooks`.
 - Toute tentative de « renommer pour contourner » est contraire à la politique et sera bloquée par les contrôles outillés.
 
 #TEST: ci/anti-mock-scan.ps1
 #TEST: ci/no-mocks-check.ps1
-#TEST: .git/hooks/pre-push.ps1
+#TEST: scripts/git-hooks/pre-push.ps1

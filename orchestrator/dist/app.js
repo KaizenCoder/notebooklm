@@ -247,7 +247,7 @@ export function buildApp(deps) {
                 await app.docProc.processDocument({ notebookId: body.notebook_id, sourceId: body.source_id, text: body.text, sourceType: body.source_type, fileUrl: body.file_url, correlationId: req.correlationId });
                 if (body.callback_url) {
                     try {
-                        await undiciRequest(body.callback_url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ source_id: body.source_id, status: 'completed' }) });
+                        await undiciRequest(body.callback_url, { method: 'POST', headers: { 'content-type': 'application/json', 'x-correlation-id': req.id }, headersTimeout: 2000, bodyTimeout: 2000, body: JSON.stringify({ source_id: body.source_id, status: 'completed' }) });
                         app.log.info({ correlation_id: req.id, event_code: 'CALLBACK_SENT', route: '/webhook/process-document', callback_host: (() => { try {
                                 return new URL(String(body.callback_url)).host;
                             }
@@ -282,7 +282,7 @@ export function buildApp(deps) {
                 catch { }
                 if (body.callback_url) {
                     try {
-                        await undiciRequest(body.callback_url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ source_id: body.source_id, status: 'failed' }) });
+                        await undiciRequest(body.callback_url, { method: 'POST', headers: { 'content-type': 'application/json', 'x-correlation-id': req.id }, headersTimeout: 2000, bodyTimeout: 2000, body: JSON.stringify({ source_id: body.source_id, status: 'failed' }) });
                         app.log.info({ correlation_id: req.id, event_code: 'CALLBACK_SENT', route: '/webhook/process-document', callback_host: (() => { try {
                                 return new URL(String(body.callback_url)).host;
                             }
@@ -492,7 +492,7 @@ export function buildApp(deps) {
                 if (callbackUrl) {
                     for (let i = 0; i < 2; i++) {
                         try {
-                            await undiciRequest(callbackUrl, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ notebook_id: notebookId, audio_url: audioUrl, status: 'success' }) });
+                            await undiciRequest(callbackUrl, { method: 'POST', headers: { 'content-type': 'application/json', 'x-correlation-id': corr }, headersTimeout: 2000, bodyTimeout: 2000, body: JSON.stringify({ notebook_id: notebookId, audio_url: audioUrl, status: 'success' }) });
                             app.log.info({ correlation_id: corr, event_code: 'CALLBACK_SENT', route, callback_host: (() => { try {
                                     return new URL(String(callbackUrl)).host;
                                 }
@@ -529,7 +529,7 @@ export function buildApp(deps) {
                 catch { }
                 if (callbackUrl) {
                     try {
-                        await undiciRequest(callbackUrl, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ notebook_id: notebookId, status: 'failed' }) });
+                        await undiciRequest(callbackUrl, { method: 'POST', headers: { 'content-type': 'application/json', 'x-correlation-id': corr }, headersTimeout: 2000, bodyTimeout: 2000, body: JSON.stringify({ notebook_id: notebookId, status: 'failed' }) });
                         app.log.info({ correlation_id: corr, event_code: 'CALLBACK_SENT', route, callback_host: (() => { try {
                                 return new URL(String(callbackUrl)).host;
                             }

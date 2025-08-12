@@ -18,6 +18,7 @@ class MetricsCollector {
         this.metrics[metric] += value;
     }
     getMetrics() {
+        // Allow overriding defaults via env or parameters in the future if needed
         return { ...this.metrics };
     }
     reset() {
@@ -77,18 +78,14 @@ export async function withRetry(operation, options) {
         catch (error) {
             lastError = error;
             resilienceMetrics.increment('operationFailures');
-            // Don't retry if we've reached max attempts
             if (attempt === maxAttempts) {
                 break;
             }
-            // Check if error should trigger retry
             if (!retryCondition(lastError)) {
                 throw lastError;
             }
             resilienceMetrics.increment('retryAttempts');
-            // Wait before next attempt
             await new Promise(resolve => setTimeout(resolve, currentDelay));
-            // Exponential backoff
             currentDelay = Math.min(currentDelay * backoffMultiplier, maxDelayMs);
         }
     }
@@ -172,37 +169,45 @@ export class CircuitBreaker {
 }
 /**
  * Creates a resilient version of Ollama adapter with SLO-optimized settings
+ * Preserves surface of base adapter: listModels, chat(model, messages), embeddings(model, prompt), checkGpu
  */
 export function createResilientOllamaAdapter(baseAdapter) {
     const circuitBreaker = new CircuitBreaker(); // Uses production defaults
-    return {
+    const wrapped = {
         ...baseAdapter,
-        async generateEmbedding(text) {
-            return circuitBreaker.execute(() => withRetry(() => baseAdapter.generateEmbedding(text), {
+        async chat(modelOrMessages, maybeMessages) {
+            const invoke = () => (typeof maybeMessages !== 'undefined'
+                ? baseAdapter.chat(modelOrMessages, maybeMessages)
+                : baseAdapter.chat(modelOrMessages));
+            return circuitBreaker.execute(() => withRetry(() => invoke(), {
+                maxAttempts: PRODUCTION_DEFAULTS.RETRY.maxAttempts,
+                delayMs: PRODUCTION_DEFAULTS.RETRY.delayMs * 2,
+                backoffMultiplier: PRODUCTION_DEFAULTS.RETRY.backoffMultiplier,
+                maxDelayMs: PRODUCTION_DEFAULTS.RETRY.maxDelayMs,
+                retryCondition: (error) => !error.message.includes('validation') && !error.message.includes('unauthorized') && !error.message.includes('rate limit')
+            }));
+        },
+        async embeddings(model, prompt, correlationId) {
+            return circuitBreaker.execute(() => withRetry(() => baseAdapter.embeddings(model, prompt, correlationId), {
                 maxAttempts: PRODUCTION_DEFAULTS.RETRY.maxAttempts,
                 delayMs: PRODUCTION_DEFAULTS.RETRY.delayMs,
                 backoffMultiplier: PRODUCTION_DEFAULTS.RETRY.backoffMultiplier,
                 maxDelayMs: PRODUCTION_DEFAULTS.RETRY.maxDelayMs,
-                retryCondition: (error) => {
-                    // Retry on network errors, timeouts, but not on validation errors
-                    return !error.message.includes('validation') &&
-                        !error.message.includes('unauthorized') &&
-                        !error.message.includes('rate limit');
-                }
+                retryCondition: (error) => !error.message.includes('validation') && !error.message.includes('unauthorized') && !error.message.includes('rate limit')
             }));
         },
-        async chat(messages) {
-            return circuitBreaker.execute(() => withRetry(() => baseAdapter.chat(messages), {
-                maxAttempts: PRODUCTION_DEFAULTS.RETRY.maxAttempts,
-                delayMs: PRODUCTION_DEFAULTS.RETRY.delayMs * 2, // Longer delay for chat
-                backoffMultiplier: PRODUCTION_DEFAULTS.RETRY.backoffMultiplier,
-                maxDelayMs: PRODUCTION_DEFAULTS.RETRY.maxDelayMs,
-                retryCondition: (error) => {
-                    return !error.message.includes('validation') &&
-                        !error.message.includes('unauthorized') &&
-                        !error.message.includes('rate limit');
-                }
-            }));
+        async generateEmbedding(text) {
+            if (typeof baseAdapter.generateEmbedding === 'function') {
+                return circuitBreaker.execute(() => withRetry(() => baseAdapter.generateEmbedding(text), {
+                    maxAttempts: PRODUCTION_DEFAULTS.RETRY.maxAttempts,
+                    delayMs: PRODUCTION_DEFAULTS.RETRY.delayMs,
+                    backoffMultiplier: PRODUCTION_DEFAULTS.RETRY.backoffMultiplier,
+                    maxDelayMs: PRODUCTION_DEFAULTS.RETRY.maxDelayMs,
+                    retryCondition: (error) => !error.message.includes('validation') && !error.message.includes('unauthorized') && !error.message.includes('rate limit')
+                }));
+            }
+            throw new Error('generateEmbedding not supported by base adapter');
         }
     };
+    return wrapped;
 }

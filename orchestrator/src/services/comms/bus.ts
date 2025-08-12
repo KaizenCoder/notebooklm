@@ -1,4 +1,4 @@
-import { createClient, type RedisClientType, type StreamMessageReply, type XReadGroupCommandOptions } from 'redis';
+import { createClient } from 'redis';
 import { z } from 'zod';
 import type { Env } from '../../env.js';
 
@@ -6,8 +6,8 @@ const BusMessageSchema = z.object({
   from_agent: z.string().min(1),
   team: z.string().min(1),
   role: z.enum(['spec','impl','test','audit','ops','coord','orchestrator']).optional(),
-  to: z.string().min(1), // orchestrator|auditor|impl|* or specific agent id
-  topic: z.string().min(1), // HEARTBEAT|BLOCKER|AUDIT_REQUEST|AUDIT_VERDICT|CONTROL|...
+  to: z.string().min(1),
+  topic: z.string().min(1),
   event: z.string().min(1),
   status: z.string().min(1),
   tm_ids: z.array(z.string()).min(0).optional(),
@@ -29,19 +29,18 @@ export type Bus = {
   ensureGroup: (stream: string, group: string) => Promise<void>;
   publish: (stream: string, msg: BusMessage) => Promise<string | null>;
   consume: (streams: string[], group: string, consumer: string, onMessage: (stream: string, id: string, msg: Record<string,string>) => Promise<void>) => { stop: () => Promise<void> };
-  client: RedisClientType;
+  client: any;
 };
 
 export function createBus(env: Env): Bus | null {
   if (!env.REDIS_URL) return null;
-  const client = createClient({ url: env.REDIS_URL });
-  client.on('error', (e) => { /* eslint-disable no-console */ console.error('[redis]', (e as any)?.message || String(e)); });
+  const client: any = createClient({ url: (env as any).REDIS_URL });
+  client.on('error', (e: any) => { /* eslint-disable no-console */ console.error('[redis]', e?.message || String(e)); });
   const ready = client.connect();
 
   async function ensureGroup(stream: string, group: string) {
     await ready;
     try {
-      // Try create with MKSTREAM; ignore if exists
       await client.xGroupCreate(stream, group, '$', { MKSTREAM: true });
     } catch (e: any) {
       const msg = String(e?.message || e);
@@ -62,22 +61,21 @@ export function createBus(env: Env): Bus | null {
     let stopped = false;
     (async () => {
       await ready;
-      // Ensure groups on all streams
       for (const s of streams) { try { await ensureGroup(s, group); } catch {} }
-      let ids = streams.map(() => '>');
-      const opts: XReadGroupCommandOptions = { BLOCK: 1000, COUNT: 50 };
+      const ids = streams.map(() => '>');
+      const opts = { BLOCK: 1000, COUNT: 50 } as any;
       while (!stopped) {
         try {
-          const res = await client.xReadGroup(group, consumer, streams.map((s, i) => ({ key: s, id: ids[i] })), opts);
+          const res: Array<{ name: string, messages: Array<{ id: string, message: Record<string,string> }> }> | null = await client.xReadGroup(group, consumer, streams.map((s, i) => ({ key: s, id: ids[i] })), opts);
           if (!res) continue;
-          for (let si = 0; si < res.length; si++) {
-            const r = res[si];
+          for (const r of res) {
             for (const m of r.messages) {
-              try { await onMessage(r.name, m.id, m.message as any); await client.xAck(r.name, group, m.id); }
-              catch {}
+              try { await onMessage(r.name, m.id, m.message as any); await client.xAck(r.name, group, m.id); } catch {}
             }
           }
-        } catch { /* keep loop */ }
+        } catch {
+          // keep loop
+        }
       }
     })();
     return { stop: async () => { stopped = true; try { await client.quit(); } catch {} } };

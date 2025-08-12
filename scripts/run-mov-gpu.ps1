@@ -4,7 +4,8 @@ param(
   [string]$Llmmodel = "qwen3:8b-q4_K_M",
   [string]$EmbedModel = "nomic-embed-text",
   [string]$PostgresDsn = "postgres://postgres:postgres@localhost:5432/notebooklm",
-  [string]$OllamaModelsDir = "D:\\modeles_llm"
+  [string]$OllamaModelsDir = "D:\\modeles_llm",
+  [int]$Port = 8000
 )
 $ErrorActionPreference = 'Stop'
 Write-Host "--- Démarrage Orchestrator MOV (GPU_ONLY=1, NO_MOCKS=1) ---"
@@ -16,6 +17,7 @@ $env:NO_MOCKS="1"
 $env:GPU_ONLY="1"
 $env:POSTGRES_DSN=$PostgresDsn
 $env:OLLAMA_MODELS=$OllamaModelsDir
+$env:PORT= [string]$Port
 $orchestratorDir = Join-Path $PSScriptRoot '..\orchestrator'
 pushd $orchestratorDir
 try {

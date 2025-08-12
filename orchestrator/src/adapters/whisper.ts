@@ -1,11 +1,7 @@
 /**
- * Whisper ASR Adapter
- * Implementation for Task 8.3: ASR Integration
- * 
- * Production-ready with environment-based configuration
+ * Whisper ASR (Automatic Speech Recognition) Adapter
+ * Implémentation minimale orientée production (sans valeurs simulées)
  */
-
-import { adapterConfig } from '../config/adapters';
 
 export interface WhisperTranscription {
   text: string;
@@ -29,12 +25,12 @@ export interface WhisperOptions {
 export class WhisperAdapter {
   private baseUrl: string;
   private apiKey?: string;
-  private timeout: number;
+  private timeoutMs: number;
 
-  constructor(baseUrl?: string, apiKey?: string, timeout?: number) {
-    this.baseUrl = baseUrl || adapterConfig.whisper.baseUrl;
-    this.apiKey = apiKey || adapterConfig.whisper.apiKey;
-    this.timeout = timeout || adapterConfig.whisper.timeout;
+  constructor(baseUrl = 'http://localhost:9000', apiKey?: string, timeoutMs = 15000) {
+    this.baseUrl = baseUrl;
+    this.apiKey = apiKey;
+    this.timeoutMs = timeoutMs;
   }
 
   async transcribe(
@@ -53,11 +49,11 @@ export class WhisperAdapter {
 
     if (options.model) formData.append('model', options.model);
     if (options.language) formData.append('language', options.language);
-    if (options.temperature) formData.append('temperature', String(options.temperature));
+    if (typeof options.temperature === 'number') formData.append('temperature', String(options.temperature));
     if (options.response_format) formData.append('response_format', options.response_format);
 
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), this.timeout);
+    const to = setTimeout(() => controller.abort(), this.timeoutMs);
 
     try {
       const response = await fetch(`${this.baseUrl}/v1/audio/transcriptions`, {
@@ -66,32 +62,30 @@ export class WhisperAdapter {
           ...(this.apiKey && { 'Authorization': `Bearer ${this.apiKey}` }),
         },
         body: formData,
-        signal: controller.signal
+        signal: controller.signal,
       });
-
-      clearTimeout(timeoutId);
+      clearTimeout(to);
 
       if (!response.ok) {
         throw new Error(`Whisper API error: ${response.status} ${response.statusText}`);
       }
 
       const result: any = await response.json();
-
-      // Fallbacks compatibles tests quand l'API renvoie minimal
-      const text: string = typeof result.text === 'string' && result.text.length > 0 ? result.text : 'Mock transcription';
-      const segments: WhisperTranscription['segments'] = Array.isArray(result.segments) && result.segments.length > 0
-        ? result.segments
-        : [{ start: 0, end: 1, text }];
-      const language = result.language ?? options.language ?? 'en';
-      const duration = typeof result.duration === 'number' ? result.duration : 1;
-
-      return { text, segments, language, duration };
-    } catch (error) {
-      clearTimeout(timeoutId);
-      if ((error as any).name === 'AbortError') {
-        throw new Error(`Whisper API timeout after ${this.timeout}ms`);
+      if (typeof result?.text !== 'string' || result.text.length === 0) {
+        throw new Error('Whisper API invalid response: missing text');
       }
-      throw error;
+
+      const segments = Array.isArray(result.segments) ? result.segments : [];
+      const language = typeof result.language === 'string' ? result.language : (options.language ?? 'en');
+      const duration = typeof result.duration === 'number' ? result.duration : undefined;
+
+      return { text: result.text, segments, language, duration };
+    } catch (err: any) {
+      clearTimeout(to);
+      if (err?.name === 'AbortError') {
+        throw new Error(`Whisper API timeout after ${this.timeoutMs}ms`);
+      }
+      throw err;
     }
   }
 
@@ -103,14 +97,7 @@ export class WhisperAdapter {
     });
 
     if (!response.ok) {
-      // fallback models pour tests
-      return [
-        { id: 'whisper-tiny', created: 0, object: 'model' },
-        { id: 'whisper-base', created: 0, object: 'model' },
-        { id: 'whisper-small', created: 0, object: 'model' },
-        { id: 'whisper-medium', created: 0, object: 'model' },
-        { id: 'whisper-large', created: 0, object: 'model' }
-      ];
+      throw new Error(`Whisper models error: ${response.status} ${response.statusText}`);
     }
 
     const result = await response.json();

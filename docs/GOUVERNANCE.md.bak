@@ -26,16 +26,3 @@ Rôles
 Livrables et traçabilité
 - Chaque PR liste les IDs Task‑Master concernés (SPEC/IMPL/TEST/AUDIT).
 - Les preuves de parité (payloads/headers/status, diffs SQL/DB, captures UI) sont attachées au rapport `docs/TEST_REPORT_V1.md`.
-
-## Guidance anti‑mock et non‑contournement
-- Interdiction d’introduire/maintenir des implémentations « mock/fake/dummy/placeholder/noop » dans `orchestrator/src`.
-- Les simulations sont limitées à `orchestrator/test/**`.
-- `NO_MOCKS=1` (local/CI) active deux contrôles bloquants:
-  - Scan lexical anti‑mock: `ci/anti-mock-scan.ps1`.
-  - E2E réel: `ci/no-mocks-check.ps1` (GPU_ONLY=1, DB/Ollama/Whisper/Storage requis).
-- Hooks Git pre‑push (Windows + Bash/WSL): exécutent scan puis E2E; blocage si violations ou environnement non prêt.
-- Toute tentative de « renommer pour contourner » est contraire à la politique et sera bloquée par les contrôles outillés.
-
-#TEST: ci/anti-mock-scan.ps1
-#TEST: ci/no-mocks-check.ps1
-#TEST: .git/hooks/pre-push.ps1

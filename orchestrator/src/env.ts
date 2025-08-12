@@ -9,12 +9,17 @@ const EnvSchema = z.object({
   OLLAMA_BASE_URL: z.string().url().default('http://ollama:11434'),
   OLLAMA_EMBED_MODEL: z.string().optional(),
   OLLAMA_LLM_MODEL: z.string().optional(),
-  GPU_ONLY: z.string().optional(), // '1' to enforce
-  IDEMPOTENCY_TTL_MS: z.string().optional(), // TTL for idempotency store
+  GPU_ONLY: z.string().optional(),
+  IDEMPOTENCY_TTL_MS: z.string().optional(),
   WHISPER_ASR_URL: z.string().url().optional(),
   COQUI_TTS_URL: z.string().url().optional(),
   STORAGE_BASE_URL: z.string().url().optional(),
-  NO_MOCKS: z.string().optional() // '1' to forbid mocks in runtime
+  NO_MOCKS: z.string().optional(),
+  REDIS_URL: z.string().url().optional(),
+  REDIS_STREAM_HEARTBEAT: z.string().default('coordination_heartbeat'),
+  REDIS_STREAM_BLOCKERS: z.string().default('coordination_blockers'),
+  REDIS_STREAM_AUDIT_REQ: z.string().default('audit_requests'),
+  REDIS_STREAM_AUDIT_VERDICT: z.string().default('auditeur_compliance')
 });
 
 export type Env = z.infer<typeof EnvSchema>;

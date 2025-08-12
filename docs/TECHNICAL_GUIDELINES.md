@@ -56,6 +56,8 @@ Pour garantir la parité et la qualité, les conventions suivantes sont à respe
 - **Logs Structurés :** Tous les logs doivent être au format JSON.
 - **Traçabilité :** Chaque requête reçue par l'API doit se voir assigner un `correlation_id` unique, qui doit être présent dans tous les logs relatifs à cette requête. Cela permet de suivre le parcours complet d'une opération.
 - **Métriques de Latence :** Le temps de traitement des étapes clés (ex: `extract_duration`, `embed_duration`, `rag_duration`) doit être journalisé pour identifier les goulots d'étranglement.
+- **Redaction :** Les champs sensibles ne doivent jamais apparaître dans les logs (ex: `Authorization`). Les en-têtes sont redacts en `[REDACTED]`.
+- **Sampling :** Contrôlé par la variable d'environnement `LOG_SAMPLE_PCT` (0 à 100). Le hook `onResponse` ne journalise "request complete" qu'avec une probabilité `LOG_SAMPLE_PCT%`. Les réponses en erreur (HTTP ≥ 400) sont toujours journalisées (non soumises au sampling) pour diagnostic.
 
 ## 7. Hook Git pre-push NO_MOCKS (Local)
 

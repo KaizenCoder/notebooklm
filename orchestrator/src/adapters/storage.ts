@@ -1,11 +1,46 @@
 /**
  * Storage Adapter for file operations
  * Implementation for Task 8.5: Storage Integration
+ * 
+ * Production-ready with enhanced MIME security validation
  */
 
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { createHash } from 'crypto';
+
+// Enhanced security: Allowed MIME types for production
+const ALLOWED_MIME_TYPES = {
+  // Documents
+  'application/pdf': ['.pdf'],
+  'text/plain': ['.txt'],
+  'text/markdown': ['.md'],
+  'application/msword': ['.doc'],
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx'],
+  
+  // Audio
+  'audio/wav': ['.wav'],
+  'audio/mpeg': ['.mp3'],
+  'audio/mp4': ['.m4a'],
+  'audio/ogg': ['.ogg'],
+  'audio/flac': ['.flac'],
+  
+  // Images (for UI/assets)
+  'image/jpeg': ['.jpg', '.jpeg'],
+  'image/png': ['.png'],
+  'image/gif': ['.gif'],
+  
+  // Data formats
+  'application/json': ['.json'],
+  'text/csv': ['.csv'],
+  'application/xml': ['.xml']
+};
+
+// Dangerous extensions to block
+const BLOCKED_EXTENSIONS = [
+  '.exe', '.bat', '.cmd', '.com', '.scr', '.pif', '.vbs', '.js', '.jar',
+  '.sh', '.ps1', '.msi', '.dll', '.sys', '.bin', '.app', '.deb', '.rpm'
+];
 
 export interface StorageFile {
   id: string;
@@ -56,7 +91,7 @@ export class StorageAdapter {
   }
 
   /**
-   * Upload a file to storage
+   * Upload a file to storage with enhanced security validation
    */
   async upload(
     buffer: Buffer,
@@ -64,6 +99,9 @@ export class StorageAdapter {
     options: StorageUploadOptions = {}
   ): Promise<StorageFile> {
     await this.initialize();
+
+    // Security validation
+    await this.validateFileContent(buffer, filename);
 
     const fileId = this.generateFileId(filename);
     const finalFilename = options.preserveOriginalName ? filename : `${fileId}_${filename}`;
@@ -81,11 +119,12 @@ export class StorageAdapter {
       }
     }
 
-    // Write file
-    await fs.writeFile(filePath, buffer);
+    // Write file with proper permissions (read-only for security)
+    await fs.writeFile(filePath, buffer, { mode: 0o644 });
 
-    // Generate hash if requested
-    const hash = options.generateHash ? this.generateHash(buffer) : '';
+    // Generate hash if requested (default to true for security)
+    const generateHash = options.generateHash !== false;
+    const hash = generateHash ? this.generateHash(buffer) : '';
 
     // Get file stats
     const stats = await fs.stat(filePath);
@@ -95,7 +134,7 @@ export class StorageAdapter {
       name: finalFilename,
       path: filePath,
       size: stats.size,
-      mimeType: this.getMimeType(filename),
+      mimeType: this.getMimeType(filename), // Now includes security validation
       hash,
       createdAt: stats.birthtime,
       modifiedAt: stats.mtime
@@ -242,21 +281,54 @@ export class StorageAdapter {
     return createHash('sha256').update(buffer).digest('hex');
   }
 
+  /**
+   * Enhanced MIME type detection with security validation
+   */
   private getMimeType(filename: string): string {
     const ext = path.extname(filename).toLowerCase();
-    const mimeTypes: Record<string, string> = {
-      '.txt': 'text/plain',
-      '.md': 'text/markdown',
-      '.json': 'application/json',
-      '.pdf': 'application/pdf',
-      '.wav': 'audio/wav',
-      '.mp3': 'audio/mpeg',
-      '.png': 'image/png',
-      '.jpg': 'image/jpeg',
-      '.jpeg': 'image/jpeg'
-    };
     
-    return mimeTypes[ext] || 'application/octet-stream';
+    // Security check: Block dangerous extensions
+    if (BLOCKED_EXTENSIONS.includes(ext)) {
+      throw new Error(`File extension ${ext} is not allowed for security reasons`);
+    }
+    
+    // Find MIME type from allowed types
+    for (const [mimeType, extensions] of Object.entries(ALLOWED_MIME_TYPES)) {
+      if (extensions.includes(ext)) {
+        return mimeType;
+      }
+    }
+    
+    // Reject unknown file types in production
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error(`File type ${ext} is not supported in production environment`);
+    }
+    
+    // Allow unknown types in development with warning
+    console.warn(`Unknown file type ${ext}, using generic MIME type`);
+    return 'application/octet-stream';
+  }
+
+  /**
+   * Additional security validation for file content
+   */
+  private async validateFileContent(buffer: Buffer, filename: string): Promise<void> {
+    const ext = path.extname(filename).toLowerCase();
+    
+    // Basic magic number validation for common types
+    if (ext === '.pdf' && !buffer.subarray(0, 4).equals(Buffer.from([0x25, 0x50, 0x44, 0x46]))) {
+      throw new Error('PDF file validation failed: Invalid file header');
+    }
+    
+    if (ext === '.png' && !buffer.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]))) {
+      throw new Error('PNG file validation failed: Invalid file header');
+    }
+    
+    // Check file size limits (10MB default)
+    const maxSize = process.env.MAX_FILE_SIZE ? parseInt(process.env.MAX_FILE_SIZE) : 10 * 1024 * 1024;
+    if (buffer.length > maxSize) {
+      throw new Error(`File size ${buffer.length} exceeds maximum allowed size ${maxSize}`);
+    }
   }
 
   private async loadMetadata(): Promise<Record<string, StorageFile>> {

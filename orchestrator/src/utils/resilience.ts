@@ -1,7 +1,47 @@
 /**
  * Resilience utilities for handling timeouts, retries, and error recovery
  * Implementation for Task 17: Resilience & Fault Tolerance
+ * 
+ * Production-ready configuration with telemetry and SLO-based defaults
  */
+
+// Telemetry interface for metrics export
+export interface ResilienceMetrics {
+  retryAttempts: number;
+  timeouts: number;
+  circuitBreakerOpens: number;
+  circuitBreakerResets: number;
+  operationSuccess: number;
+  operationFailures: number;
+}
+
+// Global metrics collector
+class MetricsCollector {
+  private metrics: ResilienceMetrics = {
+    retryAttempts: 0,
+    timeouts: 0,
+    circuitBreakerOpens: 0,
+    circuitBreakerResets: 0,
+    operationSuccess: 0,
+    operationFailures: 0
+  };
+
+  increment(metric: keyof ResilienceMetrics, value: number = 1) {
+    this.metrics[metric] += value;
+  }
+
+  getMetrics(): ResilienceMetrics {
+    return { ...this.metrics };
+  }
+
+  reset() {
+    Object.keys(this.metrics).forEach(key => {
+      (this.metrics as any)[key] = 0;
+    });
+  }
+}
+
+export const resilienceMetrics = new MetricsCollector();
 
 export class TimeoutError extends Error {
   constructor(message: string, public timeoutMs: number) {
@@ -31,18 +71,36 @@ export interface TimeoutOptions {
   timeoutMessage?: string;
 }
 
+// Production-ready SLO-based defaults
+export const PRODUCTION_DEFAULTS = {
+  RETRY: {
+    maxAttempts: 3,
+    delayMs: 500,  // 500ms initial delay for SLO compliance
+    backoffMultiplier: 1.5,  // Gentler backoff for production
+    maxDelayMs: 5000,  // Max 5s delay to respect SLO
+  },
+  TIMEOUT: {
+    timeoutMs: 10000,  // 10s timeout for SLO compliance
+  },
+  CIRCUIT_BREAKER: {
+    threshold: 5,  // Open after 5 failures
+    timeoutMs: 30000,  // 30s timeout for operations
+    resetTimeoutMs: 60000,  // 1min before reset attempt
+  }
+};
+
 /**
- * Implements exponential backoff retry logic
+ * Implements exponential backoff retry logic with telemetry
  */
 export async function withRetry<T>(
   operation: () => Promise<T>,
   options: RetryOptions
 ): Promise<T> {
   const {
-    maxAttempts,
-    delayMs,
-    backoffMultiplier = 2,
-    maxDelayMs = 30000,
+    maxAttempts = PRODUCTION_DEFAULTS.RETRY.maxAttempts,
+    delayMs = PRODUCTION_DEFAULTS.RETRY.delayMs,
+    backoffMultiplier = PRODUCTION_DEFAULTS.RETRY.backoffMultiplier,
+    maxDelayMs = PRODUCTION_DEFAULTS.RETRY.maxDelayMs,
     retryCondition = () => true
   } = options;
 
@@ -51,9 +109,12 @@ export async function withRetry<T>(
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
-      return await operation();
+      const result = await operation();
+      resilienceMetrics.increment('operationSuccess');
+      return result;
     } catch (error) {
       lastError = error as Error;
+      resilienceMetrics.increment('operationFailures');
 
       // Don't retry if we've reached max attempts
       if (attempt === maxAttempts) {
@@ -65,6 +126,8 @@ export async function withRetry<T>(
         throw lastError;
       }
 
+      resilienceMetrics.increment('retryAttempts');
+      
       // Wait before next attempt
       await new Promise(resolve => setTimeout(resolve, currentDelay));
 
@@ -80,16 +143,20 @@ export async function withRetry<T>(
 }
 
 /**
- * Adds timeout capability to any async operation
+ * Adds timeout capability to any async operation with telemetry
  */
 export async function withTimeout<T>(
   operation: () => Promise<T>,
   options: TimeoutOptions
 ): Promise<T> {
-  const { timeoutMs, timeoutMessage } = options;
+  const { 
+    timeoutMs = PRODUCTION_DEFAULTS.TIMEOUT.timeoutMs, 
+    timeoutMessage 
+  } = options;
 
   return new Promise<T>((resolve, reject) => {
     const timeoutId = setTimeout(() => {
+      resilienceMetrics.increment('timeouts');
       reject(new TimeoutError(
         timeoutMessage || `Operation timed out after ${timeoutMs}ms`,
         timeoutMs
@@ -109,7 +176,7 @@ export async function withTimeout<T>(
 }
 
 /**
- * Circuit breaker pattern implementation
+ * Circuit breaker pattern implementation with telemetry and SLO-based defaults
  */
 export class CircuitBreaker {
   private failures = 0;
@@ -117,15 +184,16 @@ export class CircuitBreaker {
   private state: 'CLOSED' | 'OPEN' | 'HALF_OPEN' = 'CLOSED';
 
   constructor(
-    private threshold: number,
-    private timeoutMs: number,
-    private resetTimeoutMs: number = 60000
+    private threshold: number = PRODUCTION_DEFAULTS.CIRCUIT_BREAKER.threshold,
+    private timeoutMs: number = PRODUCTION_DEFAULTS.CIRCUIT_BREAKER.timeoutMs,
+    private resetTimeoutMs: number = PRODUCTION_DEFAULTS.CIRCUIT_BREAKER.resetTimeoutMs
   ) {}
 
   async execute<T>(operation: () => Promise<T>): Promise<T> {
     if (this.state === 'OPEN') {
       if (Date.now() - this.lastFailureTime > this.resetTimeoutMs) {
         this.state = 'HALF_OPEN';
+        resilienceMetrics.increment('circuitBreakerResets');
       } else {
         throw new Error('Circuit breaker is OPEN');
       }
@@ -152,6 +220,7 @@ export class CircuitBreaker {
 
     if (this.failures >= this.threshold) {
       this.state = 'OPEN';
+      resilienceMetrics.increment('circuitBreakerOpens');
     }
   }
 
@@ -165,10 +234,10 @@ export class CircuitBreaker {
 }
 
 /**
- * Creates a resilient version of Ollama adapter with retry and timeout
+ * Creates a resilient version of Ollama adapter with SLO-optimized settings
  */
 export function createResilientOllamaAdapter(baseAdapter: any) {
-  const circuitBreaker = new CircuitBreaker(5, 30000, 60000);
+  const circuitBreaker = new CircuitBreaker(); // Uses production defaults
 
   return {
     ...baseAdapter,
@@ -178,12 +247,15 @@ export function createResilientOllamaAdapter(baseAdapter: any) {
         withRetry(
           () => baseAdapter.generateEmbedding(text),
           {
-            maxAttempts: 3,
-            delayMs: 1000,
+            maxAttempts: PRODUCTION_DEFAULTS.RETRY.maxAttempts,
+            delayMs: PRODUCTION_DEFAULTS.RETRY.delayMs,
+            backoffMultiplier: PRODUCTION_DEFAULTS.RETRY.backoffMultiplier,
+            maxDelayMs: PRODUCTION_DEFAULTS.RETRY.maxDelayMs,
             retryCondition: (error: Error) => {
               // Retry on network errors, timeouts, but not on validation errors
               return !error.message.includes('validation') && 
-                     !error.message.includes('unauthorized');
+                     !error.message.includes('unauthorized') &&
+                     !error.message.includes('rate limit');
             }
           }
         )
@@ -195,11 +267,14 @@ export function createResilientOllamaAdapter(baseAdapter: any) {
         withRetry(
           () => baseAdapter.chat(messages),
           {
-            maxAttempts: 3,
-            delayMs: 2000,
+            maxAttempts: PRODUCTION_DEFAULTS.RETRY.maxAttempts,
+            delayMs: PRODUCTION_DEFAULTS.RETRY.delayMs * 2, // Longer delay for chat
+            backoffMultiplier: PRODUCTION_DEFAULTS.RETRY.backoffMultiplier,
+            maxDelayMs: PRODUCTION_DEFAULTS.RETRY.maxDelayMs,
             retryCondition: (error: Error) => {
               return !error.message.includes('validation') && 
-                     !error.message.includes('unauthorized');
+                     !error.message.includes('unauthorized') &&
+                     !error.message.includes('rate limit');
             }
           }
         )

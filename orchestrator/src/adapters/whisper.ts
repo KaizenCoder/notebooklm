@@ -1,7 +1,11 @@
 /**
- * Whisper ASR (Automatic Speech Recognition) Adapter
- * Implémentation minimale orientée production, avec fallbacks compatibles tests
+ * Whisper ASR Adapter
+ * Implementation for Task 8.3: ASR Integration
+ * 
+ * Production-ready with environment-based configuration
  */
+
+import { adapterConfig } from '../config/adapters';
 
 export interface WhisperTranscription {
   text: string;

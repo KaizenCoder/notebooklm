@@ -10,7 +10,8 @@ const EnvSchema = z.object({
   OLLAMA_EMBED_MODEL: z.string().optional(),
   OLLAMA_LLM_MODEL: z.string().optional(),
   GPU_ONLY: z.string().optional(), // '1' to enforce
-  IDEMPOTENCY_TTL_MS: z.string().optional() // TTL for idempotency store
+  IDEMPOTENCY_TTL_MS: z.string().optional(), // TTL for idempotency store
+  WHISPER_ASR_URL: z.string().url().optional()
 });
 
 export type Env = z.infer<typeof EnvSchema>;

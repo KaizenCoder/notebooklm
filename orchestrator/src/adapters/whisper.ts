@@ -72,7 +72,6 @@ export class WhisperAdapter {
       clearTimeout(timeoutId);
 
       if (!response.ok) {
-      if (!response.ok) {
         throw new Error(`Whisper API error: ${response.status} ${response.statusText}`);
       }
 

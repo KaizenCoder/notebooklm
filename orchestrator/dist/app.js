@@ -7,6 +7,10 @@ import { createSupabase } from './services/supabase.js';
 import { createJobs } from './services/jobs.js';
 import { createDocumentProcessor } from './services/document.js';
 import { createAudio } from './services/audio.js';
+import { createStorage } from './services/storage.js';
+import { createIdempotencyStore } from './services/idempotency.js';
+import { createWhisper } from './services/whisper.js';
+import { request as undiciRequest } from 'undici';
 export function buildApp(deps) {
     const env = deps?.env ?? loadEnv();
     const app = Fastify({ logger: true });
@@ -16,7 +20,26 @@ export function buildApp(deps) {
     const jobs = deps?.jobs ?? createJobs();
     const docProc = deps?.docProc ?? createDocumentProcessor(env, { ollama, db });
     const audio = deps?.audio ?? createAudio(env);
-    // Decorate for routes access
+    const storage = deps?.storage ?? createStorage(env);
+    const whisper = deps?.whisper ?? createWhisper(env);
+    const idem = createIdempotencyStore(Number(env.IDEMPOTENCY_TTL_MS) || undefined);
+    let gpuProbeCache = { ts: 0, ok: false };
+    async function ensureGpuAvailable() {
+        if (env.GPU_ONLY !== '1' || !env.OLLAMA_EMBED_MODEL)
+            return true;
+        const now = Date.now();
+        if (now - gpuProbeCache.ts < 15000)
+            return gpuProbeCache.ok;
+        try {
+            const ok = await ollama.checkGpu(env.OLLAMA_EMBED_MODEL);
+            gpuProbeCache = { ts: now, ok };
+            return ok;
+        }
+        catch {
+            gpuProbeCache = { ts: now, ok: false };
+            return false;
+        }
+    }
     app.decorate('env', env);
     app.decorate('db', db);
     app.decorate('ollama', ollama);
@@ -24,7 +47,8 @@ export function buildApp(deps) {
     app.decorate('jobs', jobs);
     app.decorate('docProc', docProc);
     app.decorate('audio', audio);
-    // Auth plugin for webhook routes
+    app.decorate('storage', storage);
+    app.decorate('whisper', whisper);
     app.register(fp(async (instance) => {
         instance.addHook('preValidation', async (req, reply) => {
             const url = req.routeOptions?.url;
@@ -32,141 +56,254 @@ export function buildApp(deps) {
                 return;
             const header = req.headers['authorization'];
             if (!header || header !== env.NOTEBOOK_GENERATION_AUTH) {
-                return reply.code(401).send({ code: 'UNAUTHORIZED', message: 'Invalid Authorization' });
+                return reply.code(401).send({ code: 'UNAUTHORIZED', message: 'Invalid Authorization', correlation_id: req.id });
             }
         });
     }));
-    // Health
+    app.addHook('onRequest', async (req) => {
+        req.correlationId = req.id;
+    });
     app.get('/health', async () => ({ status: 'ok' }));
-    // Ready
     app.get('/ready', async (req, reply) => {
         const details = {};
+        let ok = true;
+        // DB check
         try {
             await db.ping();
             details.db = 'ok';
         }
         catch (e) {
             details.db = { error: String(e) };
+            ok = false;
         }
+        // Ollama check
         try {
             const tags = await ollama.listModels();
             details.ollama = 'ok';
             const need = [env.OLLAMA_EMBED_MODEL, env.OLLAMA_LLM_MODEL].filter(Boolean);
             const names = tags.models?.map((m) => m.name) ?? [];
             const missing = need.filter((m) => !names.includes(m));
-            if (missing.length) {
-                details.models = { missing };
-            }
-            else {
-                details.models = 'ok';
-            }
-            // GPU-only readiness (best-effort): do a tiny embedding call with timeout
+            details.models = missing.length ? { missing } : 'ok';
+            if (missing.length)
+                ok = false;
             if (env.GPU_ONLY === '1' && env.OLLAMA_EMBED_MODEL) {
                 try {
-                    const ok = await ollama.checkGpu(env.OLLAMA_EMBED_MODEL);
-                    details.gpu = ok ? 'ok' : { error: 'embedding probe failed or timed out' };
+                    const gpuOk = await ollama.checkGpu(env.OLLAMA_EMBED_MODEL);
+                    details.gpu = gpuOk ? 'ok' : { error: 'embedding probe failed or timed out' };
+                    if (!gpuOk)
+                        ok = false;
                 }
                 catch (e) {
                     details.gpu = { error: String(e) };
+                    ok = false;
                 }
             }
         }
         catch (e) {
             details.ollama = { error: String(e) };
+            ok = false;
         }
-        const gpuConstraintOk = env.GPU_ONLY === '1' ? details.gpu === 'ok' : true;
-        const modelsOk = details.models === 'ok';
-        const ok = details.db === 'ok' && details.ollama === 'ok' && modelsOk && gpuConstraintOk;
+        // Whisper check
+        if (env.WHISPER_ASR_URL) {
+            try {
+                await whisper.transcribe('http://example.com/dummy.wav');
+                details.whisper = 'ok';
+            } // Use a dummy URL for probe
+            catch (e) {
+                details.whisper = { error: String(e) };
+                ok = false;
+            }
+        }
+        // Coqui TTS check
+        if (env.COQUI_TTS_URL) {
+            try {
+                await audio.synthesize('dummy text');
+                details.coqui = 'ok';
+            } // Use dummy text for probe
+            catch (e) {
+                details.coqui = { error: String(e) };
+                ok = false;
+            }
+        }
         if (!ok)
-            return reply.code(503).send({ ready: false, details });
+            return reply.code(503).send({ code: 'NOT_READY', message: 'Dependencies not ready', details, correlation_id: req.id });
         return { ready: true, details };
     });
-    // Webhooks
+    app.setErrorHandler((err, req, reply) => {
+        const status = err?.statusCode ?? 500;
+        const code = status === 401 ? 'UNAUTHORIZED' : status === 422 ? 'UNPROCESSABLE_ENTITY' : status === 400 ? 'BAD_REQUEST' : 'INTERNAL_ERROR';
+        const message = err?.message ?? 'Internal Server Error';
+        reply.code(status).send({ code, message, details: undefined, correlation_id: req.id });
+    });
+    function requireFields(body, fields) { for (const f of fields) {
+        if (!body[f])
+            throw Object.assign(new Error(`Missing ${f}`), { statusCode: 422 });
+    } }
     app.post('/webhook/chat', async (req, reply) => {
-        try {
-            const body = req.body ?? {};
-            const messages = Array.isArray(body.messages) ? body.messages : [];
-            if (env.OLLAMA_LLM_MODEL && messages.length) {
-                // Optionally use Supabase match_documents if query present
+        if (!(await ensureGpuAvailable())) {
+            return reply.code(503).send({ code: 'GPU_REQUIRED', message: 'GPU enforcement active; device not available', correlation_id: req.id });
+        }
+        const body = req.body ?? {};
+        let messages = [];
+        let notebookId;
+        if (typeof body.session_id === 'string' && typeof body.message === 'string' && body.message.length) {
+            messages = [{ role: 'user', content: body.message }];
+            notebookId = body.session_id;
+        }
+        else {
+            messages = Array.isArray(body.messages) ? body.messages : [{ role: 'user', content: body.message }].filter(Boolean);
+            notebookId = body.notebookId ?? body.session_id;
+        }
+        if (env.OLLAMA_LLM_MODEL && messages.length) {
+            let citations = [];
+            try {
                 const query = messages[messages.length - 1]?.content;
-                let citations = [];
-                try {
-                    if (query) {
-                        const matches = await supabase.matchDocuments(query, body.notebookId);
-                        citations = (matches || []).slice(0, 5);
-                    }
-                }
-                catch (e) {
-                    req.log.warn({ err: String(e) }, 'supabase.matchDocuments failed');
-                }
-                const chatRes = await ollama.chat(env.OLLAMA_LLM_MODEL, messages);
-                const text = chatRes?.message?.content ?? '';
-                // Persist messages best-effort
-                try {
-                    const lastUser = messages[messages.length - 1];
-                    if (lastUser?.role && lastUser?.content) {
-                        await db.insertMessage(body.notebookId ?? null, lastUser.role, lastUser.content);
-                    }
-                    if (text) {
-                        await db.insertMessage(body.notebookId ?? null, 'assistant', text);
-                    }
-                }
-                catch (e) {
-                    req.log.warn({ err: String(e) }, 'db.insertMessage failed');
-                }
-                return { success: true, data: { output: [{ text, citations }] } };
+                if (query)
+                    citations = (await supabase.matchDocuments(query, notebookId)).slice(0, 5);
             }
+            catch { }
+            const chatRes = await ollama.chat(env.OLLAMA_LLM_MODEL, messages);
+            const text = chatRes?.message?.content ?? '';
+            try {
+                const lastUser = messages[messages.length - 1];
+                if (lastUser?.role && lastUser?.content)
+                    await db.insertMessage(notebookId ?? null, lastUser.role, lastUser.content);
+                if (text)
+                    await db.insertMessage(notebookId ?? null, 'assistant', text);
+            }
+            catch { }
+            return reply.code(200).send({ success: true, data: { output: [{ text, citations }] } });
         }
-        catch (e) {
-            req.log.error({ err: String(e) }, 'chat handler failed');
-            // fallthrough to default response
-        }
-        return { success: true, data: { output: [] } };
+        return reply.code(200).send({ success: true, data: { output: [] } });
     });
     app.post('/webhook/process-document', async (req, reply) => {
-        const body = req.body ?? {};
-        // Exécuter immédiatement pour les tests contractuels (micro-batch court)
-        try {
-            await docProc.processDocument({ notebookId: body.notebookId, sourceId: body.sourceId, text: body.text });
+        if (!(await ensureGpuAvailable())) {
+            return reply.code(503).send({ code: 'GPU_REQUIRED', message: 'GPU enforcement active; device not available', correlation_id: req.id });
         }
-        catch (e) {
-            req.log?.warn({ err: String(e) }, 'process-document inline failed');
+        const b = req.body ?? {};
+        const body = { ...b, source_id: b.source_id ?? b.sourceId, file_url: b.file_url ?? b.fileUrl, file_path: b.file_path ?? b.filePath, source_type: b.source_type ?? b.sourceType, callback_url: b.callback_url ?? b.callbackUrl, notebook_id: b.notebook_id ?? b.notebookId, path: b.path };
+        const legacy = typeof b.path === 'string' || typeof b.text === 'string';
+        const openApiSignal = ['file_url', 'file_path', 'source_type', 'callback_url', 'source_id', 'notebook_id'].some((k) => typeof b[k] !== 'undefined');
+        if (!legacy && openApiSignal && body.source_type !== 'txt') {
+            requireFields(body, ['source_id', 'file_url', 'file_path', 'source_type', 'callback_url']);
         }
-        // Puis planifier en arrière-plan pour mimétisme avec l’original
-        jobs.add('process-document', async () => {
+        const idemKey = req.headers['idempotency-key']?.trim();
+        if (idemKey) {
+            const cached = idem.get(idemKey);
+            if (cached)
+                return reply.code(cached.statusCode).send(cached.body);
+            idem.begin(idemKey);
+        }
+        await app.docProc.processDocument({ notebookId: body.notebook_id, sourceId: body.source_id, text: body.text, sourceType: body.source_type, fileUrl: body.file_url, correlationId: req.correlationId });
+        app.jobs.add('process-document', async () => {
             try {
-                await docProc.processDocument({ notebookId: body.notebookId, sourceId: body.sourceId, text: body.text });
+                await app.docProc.processDocument({ notebookId: body.notebook_id, sourceId: body.source_id, text: body.text, sourceType: body.source_type, fileUrl: body.file_url, correlationId: req.correlationId });
+                if (body.callback_url) {
+                    try {
+                        await undiciRequest(body.callback_url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ source_id: body.source_id, status: 'completed' }) });
+                    }
+                    catch { }
+                }
             }
             catch (e) {
-                req.log?.warn({ err: String(e) }, 'process-document job failed');
+                try {
+                    if (app.db.updateSourceStatus && body.source_id)
+                        await app.db.updateSourceStatus(body.source_id, 'failed');
+                }
+                catch { }
+                if (body.callback_url) {
+                    try {
+                        await undiciRequest(body.callback_url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ source_id: body.source_id, status: 'failed' }) });
+                    }
+                    catch { }
+                }
             }
         }, {});
-        return reply.code(202).send({ success: true, message: 'Document processing initiated' });
+        const response = { success: true, message: 'Document processing initiated' };
+        if (idemKey)
+            idem.complete(idemKey, { statusCode: 202, body: response });
+        return reply.code(202).send(response);
     });
-    app.post('/webhook/process-additional-sources', async () => ({ success: true, message: 'Processed additional sources', webhookResponse: {} }));
+    app.post('/webhook/process-additional-sources', async (req, reply) => {
+        if (!(await ensureGpuAvailable())) {
+            return reply.code(503).send({ code: 'GPU_REQUIRED', message: 'GPU enforcement active; device not available', correlation_id: req.id });
+        }
+        const b = req.body ?? {};
+        const body = { ...b, sourceId: b.sourceId ?? (Array.isArray(b.sourceIds) ? b.sourceIds[0] : undefined) };
+        const idemKey = req.headers['idempotency-key']?.trim();
+        if (idemKey) {
+            const cached = idem.get(idemKey);
+            if (cached)
+                return reply.code(cached.statusCode).send(cached.body);
+            idem.begin(idemKey);
+        }
+        if (body.type === 'copied-text') {
+            try {
+                requireFields(body, ['notebookId', 'content', 'sourceId']);
+                await app.docProc.processDocument({ notebookId: body.notebookId, sourceId: body.sourceId, text: body.content, sourceType: 'txt', correlationId: req.correlationId });
+                const res = { success: true, message: 'copied-text data sent to webhook successfully', webhookResponse: 'OK' };
+                if (idemKey)
+                    idem.complete(idemKey, { statusCode: 200, body: res });
+                return reply.code(200).send(res);
+            }
+            catch (e) {
+                const res = { code: 'UNPROCESSABLE_ENTITY', message: 'Invalid copied-text payload' };
+                if (idemKey)
+                    idem.complete(idemKey, { statusCode: 422, body: res });
+                return reply.code(422).send(res);
+            }
+        }
+        if (body.type === 'multiple-websites') {
+            try {
+                requireFields(body, ['notebookId', 'urls']);
+                const urls = body.urls ?? [];
+                const sourceIds = b.sourceIds ?? [];
+                for (let i = 0; i < urls.length; i++) {
+                    const sid = sourceIds[i] ?? sourceIds[0];
+                    await app.docProc.processDocument({ notebookId: body.notebookId, sourceId: sid, sourceType: 'txt', fileUrl: urls[i], correlationId: req.correlationId });
+                }
+                const res = { success: true, message: 'multiple-websites data sent to webhook successfully', webhookResponse: 'OK' };
+                if (idemKey)
+                    idem.complete(idemKey, { statusCode: 200, body: res });
+                return reply.code(200).send(res);
+            }
+            catch (e) {
+                const res = { code: 'UNPROCESSABLE_ENTITY', message: 'Invalid multiple-websites payload' };
+                if (idemKey)
+                    idem.complete(idemKey, { statusCode: 422, body: res });
+                return reply.code(422).send(res);
+            }
+        }
+        const res = { success: true, message: 'Processed additional sources', webhookResponse: {} };
+        if (idemKey)
+            idem.complete(idemKey, { statusCode: 200, body: res });
+        return reply.code(200).send(res);
+    });
     app.post('/webhook/generate-notebook-content', async (req, reply) => {
         const body = req.body ?? {};
         const notebookId = body?.notebookId ?? body?.id ?? null;
-        // Schedule background job
-        jobs.add('generate-notebook', async () => {
-            try {
-                // Best-effort: mark as generating then completed
-                if (db.updateNotebookStatus) {
-                    await db.updateNotebookStatus(notebookId, 'generating');
-                    await db.updateNotebookStatus(notebookId, 'ready');
-                }
+        app.jobs.add('generate-notebook', async () => { try {
+            if (app.db.updateNotebookStatus) {
+                await app.db.updateNotebookStatus(notebookId, 'generating');
+                await app.db.updateNotebookStatus(notebookId, 'ready');
             }
-            catch (e) {
-                req.log?.warn({ err: String(e) }, 'generate-notebook job failed');
-            }
-        }, {});
+        }
+        catch { } }, {});
         return reply.code(202).send({ success: true, message: 'Notebook generation started in background' });
     });
     app.post('/webhook/generate-audio', async (req, reply) => {
-        const body = req.body ?? {};
+        const b = req.body ?? {};
+        const body = { ...b, notebook_id: b.notebook_id ?? b.notebookId };
+        requireFields(body, ['notebook_id']);
         const notebookId = body?.notebook_id ?? null;
         const callbackUrl = body?.callback_url ?? null;
-        // Mettre le statut en generating si dispo
+        const idemKey = req.headers['idempotency-key']?.trim();
+        if (idemKey) {
+            const cached = idem.get(idemKey);
+            if (cached)
+                return reply.code(cached.statusCode).send(cached.body);
+            idem.begin(idemKey);
+        }
         try {
             if (db.updateNotebookStatus && notebookId)
                 await db.updateNotebookStatus(notebookId, 'generating');
@@ -174,14 +311,22 @@ export function buildApp(deps) {
         catch { }
         jobs.add('generate-audio', async () => {
             try {
-                // Synthèse simulée + URL fictive locale
                 const bin = await app.audio.synthesize('overview text');
-                const audioUrl = `http://local/audio/${notebookId ?? 'unknown'}.mp3`;
+                const path = `audio/${notebookId ?? 'unknown'}.mp3`;
+                const audioUrl = await app.storage.upload(bin, path);
                 if (db.setNotebookAudio && notebookId)
                     await db.setNotebookAudio(notebookId, audioUrl);
                 if (db.updateNotebookStatus && notebookId)
                     await db.updateNotebookStatus(notebookId, 'completed');
-                // Callback best-effort (non implémenté ici, parité à compléter ultérieurement)
+                if (callbackUrl) {
+                    for (let i = 0; i < 2; i++) {
+                        try {
+                            await undiciRequest(callbackUrl, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ notebook_id: notebookId, audio_url: audioUrl, status: 'success' }) });
+                            break;
+                        }
+                        catch { }
+                    }
+                }
             }
             catch (e) {
                 try {
@@ -189,9 +334,83 @@ export function buildApp(deps) {
                         await db.updateNotebookStatus(notebookId, 'failed');
                 }
                 catch { }
+                if (callbackUrl) {
+                    try {
+                        await undiciRequest(callbackUrl, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ notebook_id: notebookId, status: 'failed' }) });
+                    }
+                    catch { }
+                }
             }
         }, {});
-        return reply.code(202).send({ success: true, message: 'Audio generation started' });
+        const response = { success: true, message: 'Audio generation started' };
+        if (idemKey)
+            idem.complete(idemKey, { statusCode: 202, body: response });
+        return reply.code(202).send(response);
     });
     return app;
+}
+export async function performBootChecks(app) {
+    const { env, db, ollama, whisper, audio } = app;
+    app.log.info('Performing boot checks...');
+    // DB check
+    try {
+        await db.ping();
+        app.log.info('DB connection: OK');
+    }
+    catch (e) {
+        app.log.error({ err: e }, 'DB connection: FAILED');
+        throw new Error('DB connection failed');
+    }
+    // Ollama check
+    try {
+        const tags = await ollama.listModels();
+        app.log.info('Ollama connection: OK');
+        const need = [env.OLLAMA_EMBED_MODEL, env.OLLAMA_LLM_MODEL].filter(Boolean);
+        const names = tags.models?.map((m) => m.name) ?? [];
+        const missing = need.filter((m) => !names.includes(m));
+        if (missing.length) {
+            app.log.error({ missingModels: missing }, 'Ollama models: MISSING');
+            throw new Error(`Missing Ollama models: ${missing.join(', ')}`);
+        }
+        else {
+            app.log.info('Ollama models: OK');
+        }
+        if (env.GPU_ONLY === '1' && env.OLLAMA_EMBED_MODEL) {
+            const gpuOk = await ollama.checkGpu(env.OLLAMA_EMBED_MODEL);
+            if (!gpuOk) {
+                app.log.error('GPU probe: FAILED');
+                throw new Error('GPU probe failed');
+            }
+            else {
+                app.log.info('GPU probe: OK');
+            }
+        }
+    }
+    catch (e) {
+        app.log.error({ err: e }, 'Ollama connection: FAILED');
+        throw new Error('Ollama connection failed');
+    }
+    // Whisper check
+    if (env.WHISPER_ASR_URL) {
+        try {
+            await whisper.transcribe('http://example.com/dummy.wav'); // Use a dummy URL for probe
+            app.log.info('Whisper ASR connection: OK');
+        }
+        catch (e) {
+            app.log.error({ err: e }, 'Whisper ASR connection: FAILED');
+            throw new Error('Whisper ASR connection failed');
+        }
+    }
+    // Coqui TTS check
+    if (env.COQUI_TTS_URL) {
+        try {
+            await audio.synthesize('dummy text'); // Use dummy text for probe
+            app.log.info('Coqui TTS connection: OK');
+        }
+        catch (e) {
+            app.log.error({ err: e }, 'Coqui TTS connection: FAILED');
+            throw new Error('Coqui TTS connection failed');
+        }
+    }
+    app.log.info('All boot checks passed.');
 }

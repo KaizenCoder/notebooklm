@@ -1,4 +1,4 @@
-import { buildApp } from '../../src/app.js';
+import { buildApp } from '../../src/app.ts';
 import Fastify from 'fastify';
 import { request as undiciRequest } from 'undici';
 
@@ -41,7 +41,7 @@ edge.post('/functions/v1/process-document', async (req, reply) => {
   if (res.statusCode === 202) {
     lastDocs = [{ id: payload.source_id, text: payload.text?.slice(0, 50) ?? 'text', metadata: { loc: { lines: { from: 5, to: 12 } } } }];
   }
-  reply.code(res.statusCode).headers(res.headers()).send(res.body);
+  reply.code(res.statusCode).headers(res.headers).send(res.body);
 });
 edge.post('/functions/v1/send-chat-message', async (req, reply) => {
   const payload: any = req.body ?? {};
@@ -51,7 +51,7 @@ edge.post('/functions/v1/send-chat-message', async (req, reply) => {
     headers: { Authorization: env.NOTEBOOK_GENERATION_AUTH },
     payload: { session_id: payload.session_id, message: payload.message, user_id: payload.user_id, timestamp: payload.timestamp }
   });
-  reply.code(res.statusCode).headers(res.headers()).send(res.body);
+  reply.code(res.statusCode).headers(res.headers).send(res.body);
 });
 
 await edge.listen({ port: 0, host: '127.0.0.1' });

@@ -55,6 +55,12 @@ paths:
             application/json:
               schema:
                 $ref: './openapi.yaml#/components/schemas/ErrorResponse'
+        '403':
+          description: Accès interdit (droits insuffisants).
+          content:
+            application/json:
+              schema:
+                $ref: './openapi.yaml#/components/schemas/ErrorResponse'
         '422':
           description: Requête non traitable (champ manquant/invalide).
           content:

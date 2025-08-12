@@ -8,8 +8,11 @@ const EnvSchema = z.object({
     OLLAMA_BASE_URL: z.string().url().default('http://ollama:11434'),
     OLLAMA_EMBED_MODEL: z.string().optional(),
     OLLAMA_LLM_MODEL: z.string().optional(),
-    // Optional strict GPU flag
-    GPU_ONLY: z.string().optional() // e.g., '1' to enforce
+    GPU_ONLY: z.string().optional(), // '1' to enforce
+    IDEMPOTENCY_TTL_MS: z.string().optional(), // TTL for idempotency store
+    WHISPER_ASR_URL: z.string().url().optional(),
+    COQUI_TTS_URL: z.string().url().optional(),
+    STORAGE_BASE_URL: z.string().url().optional()
 });
 export function loadEnv() {
     const parsed = EnvSchema.safeParse(process.env);

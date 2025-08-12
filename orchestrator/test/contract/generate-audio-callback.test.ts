@@ -4,7 +4,9 @@ import Fastify from 'fastify';
 const env = {
   PORT: '0',
   NOTEBOOK_GENERATION_AUTH: 'Bearer test',
-  OLLAMA_BASE_URL: 'http://127.0.0.1:11434'
+  OLLAMA_BASE_URL: 'http://127.0.0.1:11434',
+  COQUI_TTS_URL: 'http://127.0.0.1:5002', // Dummy URL for Coqui
+  STORAGE_BASE_URL: 'http://127.0.0.1:9000' // Dummy URL for Storage
 } as any;
 
 let updates: any[] = [];
@@ -19,6 +21,15 @@ const fakeJobs = {
   size: () => 0
 };
 
+const fakeAudio = {
+  synthesize: async (_text: string) => new Uint8Array([1, 2, 3, 4]) // Mock audio data
+};
+
+const fakeStorage = {
+  fetchText: async (_url: string) => 'mock text',
+  upload: async (_bin: Uint8Array, path: string) => `http://mock-storage/${path}` // Mock uploaded URL
+};
+
 // Callback capture server
 const cbApp = Fastify({ logger: false });
 let callbackPayload: any = null;
@@ -31,7 +42,7 @@ const address = cbApp.server.address();
 const cbPort = typeof address === 'object' && address ? address.port : 0;
 const callbackUrl = `http://127.0.0.1:${cbPort}/cb`;
 
-const app = buildApp({ env, db: fakeDb as any, jobs: fakeJobs as any, supabase: {} as any });
+const app = buildApp({ env, db: fakeDb as any, jobs: fakeJobs as any, supabase: {} as any, audio: fakeAudio as any, storage: fakeStorage as any });
 
 const res = await app.inject({
   method: 'POST',

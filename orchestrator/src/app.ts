@@ -9,6 +9,7 @@ import { createDocumentProcessor } from './services/document.js';
 import { createAudio } from './services/audio.js';
 import { createStorage } from './services/storage.js';
 import { createIdempotencyStore } from './services/idempotency.js';
+import { createWhisper } from './services/whisper.js';
 import { request as undiciRequest } from 'undici';
 
 export type AppDeps = {
@@ -18,6 +19,7 @@ export type AppDeps = {
   supabase: ReturnType<typeof createSupabase>;
   jobs: ReturnType<typeof createJobs>;
   docProc: ReturnType<typeof createDocumentProcessor>;
+  whisper: ReturnType<typeof createWhisper>;
 };
 
 export function buildApp(deps?: Partial<AppDeps>): FastifyInstance {
@@ -31,6 +33,7 @@ export function buildApp(deps?: Partial<AppDeps>): FastifyInstance {
   const docProc = (deps as any)?.docProc ?? createDocumentProcessor(env, { ollama, db });
   const audio = (deps as any)?.audio ?? createAudio(env);
   const storage = (deps as any)?.storage ?? createStorage(env);
+  const whisper = (deps as any)?.whisper ?? createWhisper(env);
   const idem = createIdempotencyStore(Number((env as any).IDEMPOTENCY_TTL_MS) || undefined);
   let gpuProbeCache: { ts: number; ok: boolean } = { ts: 0, ok: false };
 
@@ -56,6 +59,7 @@ export function buildApp(deps?: Partial<AppDeps>): FastifyInstance {
   app.decorate('docProc', docProc);
   app.decorate('audio', audio);
   app.decorate('storage', storage);
+  app.decorate('whisper', whisper);
 
   app.register(fp(async (instance: FastifyInstance) => {
     instance.addHook('preValidation', async (req: FastifyRequest, reply: FastifyReply) => {
@@ -76,17 +80,36 @@ export function buildApp(deps?: Partial<AppDeps>): FastifyInstance {
 
   app.get('/ready', async (req: FastifyRequest, reply: FastifyReply) => {
     const details: Record<string, unknown> = {};
-    try { await db.ping(); details.db = 'ok'; } catch (e) { details.db = { error: String(e) }; }
+    let ok = true;
+
+    // DB check
+    try { await db.ping(); details.db = 'ok'; } catch (e) { details.db = { error: String(e) }; ok = false; }
+
+    // Ollama check
     try {
       const tags = await ollama.listModels(); details.ollama = 'ok';
       const need = [env.OLLAMA_EMBED_MODEL, env.OLLAMA_LLM_MODEL].filter(Boolean) as string[];
       const names = (tags as any).models?.map((m: any) => m.name) ?? [];
       const missing = need.filter((m) => !names.includes(m)); details.models = missing.length ? { missing } : 'ok';
-      if (env.GPU_ONLY === '1' && env.OLLAMA_EMBED_MODEL) { try { const ok = await ollama.checkGpu(env.OLLAMA_EMBED_MODEL); details.gpu = ok ? 'ok' : { error: 'embedding probe failed or timed out' }; } catch (e) { details.gpu = { error: String(e) }; } }
-    } catch (e) { details.ollama = { error: String(e) }; }
-    const gpuOk = env.GPU_ONLY === '1' ? details.gpu === 'ok' : true;
-    const modelsOk = details.models === 'ok';
-    const ok = details.db === 'ok' && details.ollama === 'ok' && modelsOk && gpuOk;
+      if (missing.length) ok = false;
+      if (env.GPU_ONLY === '1' && env.OLLAMA_EMBED_MODEL) {
+        try { const gpuOk = await ollama.checkGpu(env.OLLAMA_EMBED_MODEL); details.gpu = gpuOk ? 'ok' : { error: 'embedding probe failed or timed out' }; if (!gpuOk) ok = false; }
+        catch (e) { details.gpu = { error: String(e) }; ok = false; }
+      }
+    } catch (e) { details.ollama = { error: String(e) }; ok = false; }
+
+    // Whisper check
+    if (env.WHISPER_ASR_URL) {
+      try { await whisper.transcribe('http://example.com/dummy.wav'); details.whisper = 'ok'; } // Use a dummy URL for probe
+      catch (e) { details.whisper = { error: String(e) }; ok = false; }
+    }
+
+    // Coqui TTS check
+    if (env.COQUI_TTS_URL) {
+      try { await audio.synthesize('dummy text'); details.coqui = 'ok'; } // Use dummy text for probe
+      catch (e) { details.coqui = { error: String(e) }; ok = false; }
+    }
+
     if (!ok) return reply.code(503).send({ code: 'NOT_READY', message: 'Dependencies not ready', details, correlation_id: req.id });
     return { ready: true, details };
   });
@@ -176,7 +199,7 @@ export function buildApp(deps?: Partial<AppDeps>): FastifyInstance {
         const sourceIds: string[] = b.sourceIds ?? [];
         for (let i = 0; i < urls.length; i++) {
           const sid = sourceIds[i] ?? sourceIds[0];
-          await app.docProc.processDocument({ notebookId: body.notebookId, sourceId: sid, text: `Fetched: ${urls[i]}`, sourceType: 'txt', correlationId: (req as any).correlationId });
+          await app.docProc.processDocument({ notebookId: body.notebookId, sourceId: sid, sourceType: 'txt', fileUrl: urls[i], correlationId: (req as any).correlationId });
         }
         const res = { success: true, message: 'multiple-websites data sent to webhook successfully', webhookResponse: 'OK' };
         if (idemKey) idem.complete(idemKey, { statusCode: 200, body: res });
@@ -243,5 +266,72 @@ declare module 'fastify' {
     jobs: ReturnType<typeof createJobs>;
     docProc: ReturnType<typeof createDocumentProcessor>;
     audio: ReturnType<typeof createAudio>;
+    storage: ReturnType<typeof createStorage>;
+    whisper: ReturnType<typeof createWhisper>;
   }
+}
+
+export async function performBootChecks(app: FastifyInstance) {
+  const { env, db, ollama, whisper, audio } = app;
+  app.log.info('Performing boot checks...');
+
+  // DB check
+  try {
+    await db.ping();
+    app.log.info('DB connection: OK');
+  } catch (e) {
+    app.log.error({ err: e }, 'DB connection: FAILED');
+    throw new Error('DB connection failed');
+  }
+
+  // Ollama check
+  try {
+    const tags = await ollama.listModels();
+    app.log.info('Ollama connection: OK');
+    const need = [env.OLLAMA_EMBED_MODEL, env.OLLAMA_LLM_MODEL].filter(Boolean) as string[];
+    const names = (tags as any).models?.map((m: any) => m.name) ?? [];
+    const missing = need.filter((m) => !names.includes(m));
+    if (missing.length) {
+      app.log.error({ missingModels: missing }, 'Ollama models: MISSING');
+      throw new Error(`Missing Ollama models: ${missing.join(', ')}`);
+    } else {
+      app.log.info('Ollama models: OK');
+    }
+    if (env.GPU_ONLY === '1' && env.OLLAMA_EMBED_MODEL) {
+      const gpuOk = await ollama.checkGpu(env.OLLAMA_EMBED_MODEL);
+      if (!gpuOk) {
+        app.log.error('GPU probe: FAILED');
+        throw new Error('GPU probe failed');
+      } else {
+        app.log.info('GPU probe: OK');
+      }
+    }
+  } catch (e) {
+    app.log.error({ err: e }, 'Ollama connection: FAILED');
+    throw new Error('Ollama connection failed');
+  }
+
+  // Whisper check
+  if (env.WHISPER_ASR_URL) {
+    try {
+      await whisper.transcribe('http://example.com/dummy.wav'); // Use a dummy URL for probe
+      app.log.info('Whisper ASR connection: OK');
+    } catch (e) {
+      app.log.error({ err: e }, 'Whisper ASR connection: FAILED');
+      throw new Error('Whisper ASR connection failed');
+    }
+  }
+
+  // Coqui TTS check
+  if (env.COQUI_TTS_URL) {
+    try {
+      await audio.synthesize('dummy text'); // Use dummy text for probe
+      app.log.info('Coqui TTS connection: OK');
+    } catch (e) {
+      app.log.error({ err: e }, 'Coqui TTS connection: FAILED');
+      throw new Error('Coqui TTS connection failed');
+    }
+  }
+
+  app.log.info('All boot checks passed.');
 }

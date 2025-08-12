@@ -4,6 +4,8 @@ paths:
       summary: Lancer la génération asynchrone d'un aperçu audio
       security:
         - ApiKeyAuth: []
+      parameters:
+        - $ref: './openapi.yaml#/components/parameters/IdempotencyKeyHeader'
       requestBody:
         required: true
         content:
@@ -46,6 +48,12 @@ paths:
                 $ref: './openapi.yaml#/components/schemas/ErrorResponse'
         '401':
           description: Non autorisé.
+          content:
+            application/json:
+              schema:
+                $ref: './openapi.yaml#/components/schemas/ErrorResponse'
+        '403':
+          description: Accès interdit (droits insuffisants).
           content:
             application/json:
               schema:

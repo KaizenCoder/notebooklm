@@ -1,7 +1,8 @@
 import { Env } from '../env.js';
 import { request as undiciRequest } from 'undici';
 
-export function createStorage(_env: Env) {
+export function createStorage(env: Env) {
+  const base = env.STORAGE_BASE_URL ?? '';
   const TIMEOUT_MS = 5000;
 
   return {
@@ -11,8 +12,18 @@ export function createStorage(_env: Env) {
       return res.body.text();
     },
     async upload(bin: Uint8Array, path: string): Promise<string> {
-      // Mock upload -> return local URL
-      return `http://local/${path}`;
+      if (!base) throw new Error('STORAGE_BASE_URL not configured');
+      const res = await undiciRequest(`${base}/${path}`, {
+        method: 'PUT',
+        headers: { 'content-type': 'application/octet-stream' },
+        headersTimeout: TIMEOUT_MS,
+        bodyTimeout: TIMEOUT_MS,
+        body: bin
+      });
+      if (res.statusCode >= 400) throw new Error(`Storage PUT failed: ${res.statusCode}`);
+      // Assuming the storage service returns the URL in a Location header or similar
+      // For now, we'll construct it based on the base URL and path
+      return `${base}/${path}`;
     }
   };
 }

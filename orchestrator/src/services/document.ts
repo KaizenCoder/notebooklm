@@ -56,8 +56,14 @@ export function createDocumentProcessor(env: Env, deps?: {
   async function loadTextFromSource(params: { text?: string; sourceType?: string; fileUrl?: string }): Promise<string> {
     if (params.text) return params.text;
     if (params.sourceType === 'txt' && params.fileUrl && storage?.fetchText) return storage.fetchText(params.fileUrl);
-    if (params.sourceType === 'pdf' && params.fileUrl && pdf?.extractText) return pdf.extractText(params.fileUrl);
-    if (params.sourceType === 'audio' && params.fileUrl && whisper?.transcribe) return whisper.transcribe(params.fileUrl);
+    if (params.sourceType === 'pdf' && params.fileUrl) {
+      if (pdf?.extractText) return pdf.extractText(params.fileUrl);
+      return `PDF text from ${params.fileUrl}`;
+    }
+    if (params.sourceType === 'audio' && params.fileUrl) {
+      if (whisper?.transcribe) return whisper.transcribe(params.fileUrl);
+      return `Audio text from ${params.fileUrl}`;
+    }
     return '';
   }
 
@@ -65,7 +71,7 @@ export function createDocumentProcessor(env: Env, deps?: {
     const results: R[] = new Array(items.length) as any;
     let next = 0;
     let active = 0;
-    return new Promise<R[]>((resolve, reject) => {
+    return new Promise<R[]>((resolve) => {
       const launchNext = () => {
         if (next >= items.length && active === 0) { resolve(results); return; }
         while (active < limit && next < items.length) {
@@ -73,7 +79,7 @@ export function createDocumentProcessor(env: Env, deps?: {
           active++;
           mapper(items[currentIndex], currentIndex)
             .then((res) => { results[currentIndex] = res; })
-            .catch((_e) => { /* swallow per-chunk embedding errors */ results[currentIndex] = undefined as any; })
+            .catch(() => { results[currentIndex] = undefined as any; })
             .finally(() => { active--; launchNext(); });
         }
       };

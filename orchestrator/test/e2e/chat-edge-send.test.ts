@@ -1,4 +1,4 @@
-import { buildApp } from '../../src/app.js';
+import { buildApp } from '../../src/app.ts';
 import Fastify from 'fastify';
 import { request as undiciRequest } from 'undici';
 

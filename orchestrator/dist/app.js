@@ -50,6 +50,16 @@ export function buildApp(deps) {
     app.decorate('storage', storage);
     app.decorate('whisper', whisper);
     app.register(fp(async (instance) => {
+        function redactHeaders(h) {
+            if (!h)
+                return {};
+            const r = { ...h };
+            if ('authorization' in r)
+                r['authorization'] = '[REDACTED]';
+            if ('Authorization' in r)
+                r['Authorization'] = '[REDACTED]';
+            return r;
+        }
         instance.addHook('preValidation', async (req, reply) => {
             const url = req.routeOptions?.url;
             if (!url || !url.startsWith('/webhook'))
@@ -58,6 +68,10 @@ export function buildApp(deps) {
             if (!header || header !== env.NOTEBOOK_GENERATION_AUTH) {
                 return reply.code(401).send({ code: 'UNAUTHORIZED', message: 'Invalid Authorization', correlation_id: req.id });
             }
+        });
+        instance.addHook('onResponse', async (req, _reply) => {
+            // Log structuré sans secrets
+            instance.log.info({ correlation_id: req.id, route: req.routerPath ?? req.url, method: req.method, headers: redactHeaders(req.headers) }, 'request complete');
         });
     }));
     app.addHook('onRequest', async (req) => {
@@ -139,6 +153,7 @@ export function buildApp(deps) {
         if (!body[f])
             throw Object.assign(new Error(`Missing ${f}`), { statusCode: 422 });
     } }
+    app.addHook('onSend', async (req, reply, payload) => { reply.header('x-correlation-id', req.id); return payload; });
     app.post('/webhook/chat', async (req, reply) => {
         if (!(await ensureGpuAvailable())) {
             return reply.code(503).send({ code: 'GPU_REQUIRED', message: 'GPU enforcement active; device not available', correlation_id: req.id });
@@ -155,6 +170,8 @@ export function buildApp(deps) {
             notebookId = body.notebookId ?? body.session_id;
         }
         if (env.OLLAMA_LLM_MODEL && messages.length) {
+            const t0 = Date.now();
+            app.log.info({ correlation_id: req.id, event_code: 'RAG_START', route: '/webhook/chat' }, 'RAG start');
             let citations = [];
             try {
                 const query = messages[messages.length - 1]?.content;
@@ -172,6 +189,8 @@ export function buildApp(deps) {
                     await db.insertMessage(notebookId ?? null, 'assistant', text);
             }
             catch { }
+            const t1 = Date.now();
+            app.log.info({ correlation_id: req.id, event_code: 'RAG_COMPLETE', route: '/webhook/chat', rag_duration_ms: t1 - t0 }, 'RAG complete');
             return reply.code(200).send({ success: true, data: { output: [{ text, citations }] } });
         }
         return reply.code(200).send({ success: true, data: { output: [] } });
@@ -184,7 +203,7 @@ export function buildApp(deps) {
         const body = { ...b, source_id: b.source_id ?? b.sourceId, file_url: b.file_url ?? b.fileUrl, file_path: b.file_path ?? b.filePath, source_type: b.source_type ?? b.sourceType, callback_url: b.callback_url ?? b.callbackUrl, notebook_id: b.notebook_id ?? b.notebookId, path: b.path };
         const legacy = typeof b.path === 'string' || typeof b.text === 'string';
         const openApiSignal = ['file_url', 'file_path', 'source_type', 'callback_url', 'source_id', 'notebook_id'].some((k) => typeof b[k] !== 'undefined');
-        if (!legacy && openApiSignal && body.source_type !== 'txt') {
+        if (!legacy && openApiSignal) {
             requireFields(body, ['source_id', 'file_url', 'file_path', 'source_type', 'callback_url']);
         }
         const idemKey = req.headers['idempotency-key']?.trim();

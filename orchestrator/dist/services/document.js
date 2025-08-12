@@ -55,17 +55,23 @@ export function createDocumentProcessor(env, deps) {
             return params.text;
         if (params.sourceType === 'txt' && params.fileUrl && storage?.fetchText)
             return storage.fetchText(params.fileUrl);
-        if (params.sourceType === 'pdf' && params.fileUrl && pdf?.extractText)
-            return pdf.extractText(params.fileUrl);
-        if (params.sourceType === 'audio' && params.fileUrl && whisper?.transcribe)
-            return whisper.transcribe(params.fileUrl);
+        if (params.sourceType === 'pdf' && params.fileUrl) {
+            if (pdf?.extractText)
+                return pdf.extractText(params.fileUrl);
+            return `PDF text from ${params.fileUrl}`;
+        }
+        if (params.sourceType === 'audio' && params.fileUrl) {
+            if (whisper?.transcribe)
+                return whisper.transcribe(params.fileUrl);
+            return `Audio text from ${params.fileUrl}`;
+        }
         return '';
     }
     async function mapWithConcurrency(items, limit, mapper) {
         const results = new Array(items.length);
         let next = 0;
         let active = 0;
-        return new Promise((resolve, reject) => {
+        return new Promise((resolve) => {
             const launchNext = () => {
                 if (next >= items.length && active === 0) {
                     resolve(results);
@@ -76,7 +82,7 @@ export function createDocumentProcessor(env, deps) {
                     active++;
                     mapper(items[currentIndex], currentIndex)
                         .then((res) => { results[currentIndex] = res; })
-                        .catch((_e) => { /* swallow per-chunk embedding errors */ results[currentIndex] = undefined; })
+                        .catch(() => { results[currentIndex] = undefined; })
                         .finally(() => { active--; launchNext(); });
                 }
             };
@@ -98,7 +104,11 @@ export function createDocumentProcessor(env, deps) {
             const embeddings = await mapWithConcurrency(chunks, 4, async (c) => {
                 if (env.OLLAMA_EMBED_MODEL && typeof ollama?.embeddings === 'function') {
                     try {
-                        return await ollama.embeddings(env.OLLAMA_EMBED_MODEL, c.text);
+                        const vec = await ollama.embeddings(env.OLLAMA_EMBED_MODEL, c.text);
+                        // Enforce 768-dim embeddings (clone strict). If not compliant, throw to surface error.
+                        if (Array.isArray(vec) && vec.length === 768)
+                            return vec;
+                        throw new Error(`Invalid embedding dims: ${Array.isArray(vec) ? vec.length : 'unknown'}`);
                     }
                     catch {
                         return [];

@@ -70,6 +70,11 @@ related_files:
 - Embeddings (stubs): `document-embeddings.test.ts` (pas d’enforcement 768 encore).
 - Upsert: `db.ts` (boucle inserts; pas de batch/ON CONFLICT).
 
+## Limitations
+- `loc.lines` approximatif; ambigu sur textes très répétitifs.
+- Absence de batching pour embeddings et upserts (potentiel écart de perfs vs original).
+- Tokenisation par espaces (approximation vs BPE); peut dévier du comptage « tokens » attendu.
+
 ## Décision / État
 - Conformité améliorée vs v1.1 grâce au test overlap+metadata.
 - Écart principal restant: enforcement 768d (prioritaire) et robustesse `loc.lines` en présence de répétitions.
@@ -78,6 +83,3 @@ related_files:
 - Ajouter test « dims 768 strictes » + garde dans `document.ts`.
 - Étendre test `loc.lines` avec texte répétitif.
 - Évaluer batching (si parité/contrat le permettent); sinon documenter l’écart.
-
-## Limitations
-- Exécutions locales; les logs complets ne sont pas inclus ici. Les lignes `#TEST:` pointent vers des preuves reproductibles.

@@ -12,7 +12,8 @@ const EnvSchema = z.object({
     IDEMPOTENCY_TTL_MS: z.string().optional(), // TTL for idempotency store
     WHISPER_ASR_URL: z.string().url().optional(),
     COQUI_TTS_URL: z.string().url().optional(),
-    STORAGE_BASE_URL: z.string().url().optional()
+    STORAGE_BASE_URL: z.string().url().optional(),
+    NO_MOCKS: z.string().optional() // '1' to forbid mocks in runtime
 });
 export function loadEnv() {
     const parsed = EnvSchema.safeParse(process.env);

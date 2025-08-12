@@ -11,25 +11,28 @@ paths:
             schema:
               type: object
               properties:
-                sourceType:
+                source_type:
                   type: string
                   enum: ["pdf", "txt", "audio", "web"]
-                notebookId:
+                notebook_id:
                   type: string
                   format: uuid
-                filePath:
+                file_path:
                   type: string
                   description: "Optionnel, si la source est un fichier."
                 content:
                   type: string
                   description: "Optionnel, si le contenu est fourni directement."
               required:
-                - sourceType
-                - notebookId
+                - source_type
+                - notebook_id
+              anyOf:
+                - required: [file_path]
+                - required: [content]
             example:
-              sourceType: "pdf"
-              notebookId: "e7b1b2c8-8a7f-4c7a-9a1e-1234567890ab"
-              filePath: "notebooks/e7b1/sources/doc.pdf"
+              source_type: "pdf"
+              notebook_id: "e7b1b2c8-8a7f-4c7a-9a1e-1234567890ab"
+              file_path: "notebooks/e7b1/sources/doc.pdf"
       responses:
         '202':
           description: Requête acceptée, la génération a démarré en arrière-plan.

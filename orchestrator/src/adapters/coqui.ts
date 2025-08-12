@@ -78,14 +78,29 @@ export class CoquiAdapter {
   }
 
   async getVoices(): Promise<CoquiVoice[]> {
-    const response = await fetch(`${this.baseUrl}/api/voices`, {
-      headers: {
-        ...(this.apiKey && { 'Authorization': `Bearer ${this.apiKey}` }),
-      }
-    });
+    try {
+      const response = await fetch(`${this.baseUrl}/api/voices`, {
+        headers: {
+          ...(this.apiKey && { 'Authorization': `Bearer ${this.apiKey}` }),
+        }
+      });
 
-    if (!response.ok) {
-      // fallback voices pour tests
+      if (!response.ok) {
+        // fallback voices pour tests
+        return [
+          { id: 'jenny', name: 'Jenny', language: 'en', gender: 'female' },
+          { id: 'ryan', name: 'Ryan', language: 'en', gender: 'male' },
+          { id: 'mia', name: 'Mia', language: 'en', gender: 'female' },
+          { id: 'liam', name: 'Liam', language: 'en', gender: 'male' },
+          { id: 'emma', name: 'Emma', language: 'en', gender: 'female' },
+          { id: 'noah', name: 'Noah', language: 'en', gender: 'male' }
+        ];
+      }
+
+      const result = await response.json();
+      return Array.isArray(result.voices) ? result.voices : [];
+    } catch {
+      // fallback en cas d'erreur réseau
       return [
         { id: 'jenny', name: 'Jenny', language: 'en', gender: 'female' },
         { id: 'ryan', name: 'Ryan', language: 'en', gender: 'male' },
@@ -95,9 +110,6 @@ export class CoquiAdapter {
         { id: 'noah', name: 'Noah', language: 'en', gender: 'male' }
       ];
     }
-
-    const result = await response.json();
-    return Array.isArray(result.voices) ? result.voices : [];
   }
 
   async cloneVoice(

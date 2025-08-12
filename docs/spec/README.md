@@ -28,6 +28,7 @@ Pour maintenir la cohérence de l'API, les conventions suivantes sont appliquée
 - **Codes d'Erreur Standards :**
   - `400 Bad Request` : La requête du client est malformée, invalide ou des paramètres sont manquants. La réponse inclut un `ErrorResponse` détaillé.
   - `401 Unauthorized` : La clé d'API dans le header `Authorization` est manquante ou invalide.
+  - `403 Forbidden` : La clé est valide mais l'accès est interdit (droits/portée insuffisants).
   - `422 Unprocessable Entity` : La requête est sémantiquement correcte, mais le serveur ne peut pas la traiter (ex: une règle métier n'est pas respectée).
   - `500 Internal Server Error` : Une erreur inattendue est survenue côté serveur.
 
@@ -43,7 +44,7 @@ Pour maintenir la cohérence de l'API, les conventions suivantes sont appliquée
   - `Authorization`: clé partagée (voir `components.securitySchemes.ApiKeyAuth`).
   - `Idempotency-Key`: recommandé pour les opérations d’ingestion (ex.: `process-document`, `process-additional-sources`).
 - Erreurs standardisées:
-  - Réponses `400|401|422|500` suivent le schéma `ErrorResponse` avec `code`, `message`, `details?`, `correlation_id`.
+  - Réponses `400|401|403|422|500` suivent le schéma `ErrorResponse` avec `code`, `message`, `details?`, `correlation_id`.
   - Le `correlation_id` est propagé dans les logs pour la traçabilité.
 - 202 (asynchrone):
   - `process-document`, `generate-audio`, `generate-notebook-content` répondent `202` avec `{ success, message }` (voir `SuccessResponse`).
@@ -53,3 +54,12 @@ Pour maintenir la cohérence de l'API, les conventions suivantes sont appliquée
   - Schémas communs: `Citation`, `SuccessResponse`, `ErrorResponse`, payloads additional-sources.
 - Santé du service:
   - `GET /health`: vivacité minimale; `GET /ready`: dépendances (DB, Ollama, modèles, GPU) prêtes sinon `503`.
+
+## Spécifications complémentaires
+
+- ENVs + contrats santé: voir `docs/spec/HEALTH_READY_SPEC.md`.
+- Interfaces adaptateurs + erreurs: voir `docs/spec/ADAPTERS_SPEC.md`.
+- GPU-only (enforcement + erreurs): voir `docs/spec/GPU_ONLY_SPEC.md`.
+- Logging & erreurs: voir `docs/spec/LOGGING_ERRORS_SPEC.md`.
+- Idempotence (ingestion): voir `docs/spec/IDEMPOTENCY_SPEC.md`.
+- Chunking & métadonnées: voir `docs/spec/CHUNKING_SPEC.md`.

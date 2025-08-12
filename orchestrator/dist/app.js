@@ -11,6 +11,7 @@ import { createStorage } from './services/storage.js';
 import { createIdempotencyStore } from './services/idempotency.js';
 import { createWhisper } from './services/whisper.js';
 import { request as undiciRequest } from 'undici';
+import { createComms } from './services/comms/index.js';
 export function buildApp(deps) {
     const env = deps?.env ?? loadEnv();
     const app = Fastify({ logger: true });
@@ -23,6 +24,7 @@ export function buildApp(deps) {
     const storage = deps?.storage ?? createStorage(env);
     const whisper = deps?.whisper ?? createWhisper(env);
     const idem = createIdempotencyStore(Number(env.IDEMPOTENCY_TTL_MS) || undefined);
+    const comms = createComms(env);
     let gpuProbeCache = { ts: 0, ok: false };
     async function ensureGpuAvailable() {
         if (env.GPU_ONLY !== '1' || !env.OLLAMA_EMBED_MODEL)
@@ -69,7 +71,13 @@ export function buildApp(deps) {
                 return reply.code(401).send({ code: 'UNAUTHORIZED', message: 'Invalid Authorization', correlation_id: req.id });
             }
         });
-        instance.addHook('onResponse', async (req, _reply) => {
+        instance.addHook('onResponse', async (req, reply) => {
+            const pct = Number(env.LOG_SAMPLE_PCT ?? 100);
+            const samplePct = Number.isFinite(pct) ? Math.min(Math.max(pct, 0), 100) : 100;
+            const alwaysLog = reply?.statusCode >= 400;
+            const shouldLog = alwaysLog || (Math.random() * 100 < samplePct);
+            if (!shouldLog)
+                return;
             instance.log.info({ correlation_id: req.id, route: req.routerPath ?? req.url, method: req.method, headers: redactHeaders(req.headers) }, 'request complete');
         });
     }));
@@ -116,7 +124,7 @@ export function buildApp(deps) {
         }
         if (env.WHISPER_ASR_URL) {
             try {
-                await whisper.transcribe('http://example.com/dummy.wav');
+                await whisper.transcribe('http://localhost:0/health.wav');
                 details.whisper = 'ok';
             }
             catch (e) {
@@ -126,7 +134,7 @@ export function buildApp(deps) {
         }
         if (env.COQUI_TTS_URL) {
             try {
-                await audio.synthesize('dummy text');
+                await audio.synthesize('[healthcheck]');
                 details.coqui = 'ok';
             }
             catch (e) {
@@ -359,6 +367,22 @@ export function buildApp(deps) {
         catch { }
         const corr = req.id;
         const route = '/webhook/generate-audio';
+        // heartbeat START
+        if (comms) {
+            comms.publishHeartbeat({
+                from_agent: 'orchestrator',
+                team: 'orange',
+                role: 'impl',
+                tm_ids: ['generate-audio'],
+                task_id: String(notebookId ?? ''),
+                event: 'TTS_JOB',
+                status: 'START',
+                severity: 'INFO',
+                timestamp: new Date().toISOString(),
+                correlation_id: corr,
+                details: 'TTS job started'
+            }).catch(() => { });
+        }
         jobs.add('generate-audio', async () => {
             try {
                 const t0 = Date.now();
@@ -396,6 +420,22 @@ export function buildApp(deps) {
                         catch { }
                     }
                 }
+                // heartbeat DONE
+                if (comms) {
+                    comms.publishHeartbeat({
+                        from_agent: 'orchestrator',
+                        team: 'orange',
+                        role: 'impl',
+                        tm_ids: ['generate-audio'],
+                        task_id: String(notebookId ?? ''),
+                        event: 'TTS_JOB',
+                        status: 'DONE',
+                        severity: 'INFO',
+                        timestamp: new Date().toISOString(),
+                        correlation_id: corr,
+                        details: 'TTS job completed'
+                    }).catch(() => { });
+                }
             }
             catch (e) {
                 try {
@@ -414,6 +454,22 @@ export function buildApp(deps) {
                             } })() }, 'Callback sent');
                     }
                     catch { }
+                }
+                // blocker CRITICAL
+                if (comms) {
+                    comms.publishBlocker({
+                        from_agent: 'orchestrator',
+                        team: 'orange',
+                        role: 'impl',
+                        tm_ids: ['generate-audio'],
+                        task_id: String(notebookId ?? ''),
+                        event: 'TTS_JOB',
+                        status: 'FAILED',
+                        severity: 'CRITICAL',
+                        timestamp: new Date().toISOString(),
+                        correlation_id: corr,
+                        details: 'TTS job failed'
+                    }).catch(() => { });
                 }
             }
         }, {});
@@ -465,7 +521,7 @@ export async function performBootChecks(app) {
     }
     if (env.WHISPER_ASR_URL) {
         try {
-            await whisper.transcribe('http://example.com/dummy.wav');
+            await whisper.transcribe('http://localhost:0/health.wav');
             app.log.info('Whisper ASR connection: OK');
         }
         catch (e) {
@@ -475,7 +531,7 @@ export async function performBootChecks(app) {
     }
     if (env.COQUI_TTS_URL) {
         try {
-            await audio.synthesize('dummy text');
+            await audio.synthesize('[healthcheck]');
             app.log.info('Coqui TTS connection: OK');
         }
         catch (e) {

@@ -11,6 +11,7 @@ import { createStorage } from './services/storage.js';
 import { createIdempotencyStore } from './services/idempotency.js';
 import { createWhisper } from './services/whisper.js';
 import { request as undiciRequest } from 'undici';
+import { createComms } from './services/comms/index.js';
 
 export type AppDeps = {
   env: Env;
@@ -35,6 +36,7 @@ export function buildApp(deps?: Partial<AppDeps>): FastifyInstance {
   const storage = (deps as any)?.storage ?? createStorage(env);
   const whisper = (deps as any)?.whisper ?? createWhisper(env);
   const idem = createIdempotencyStore(Number((env as any).IDEMPOTENCY_TTL_MS) || undefined);
+  const comms = createComms(env);
   let gpuProbeCache: { ts: number; ok: boolean } = { ts: 0, ok: false };
 
   async function ensureGpuAvailable(): Promise<boolean> {
@@ -112,12 +114,12 @@ export function buildApp(deps?: Partial<AppDeps>): FastifyInstance {
     } catch (e) { details.ollama = { error: String(e) }; ok = false; }
 
     if (env.WHISPER_ASR_URL) {
-      try { await whisper.transcribe('http://example.com/dummy.wav'); details.whisper = 'ok'; }
+      try { await whisper.transcribe('http://localhost:0/health.wav'); details.whisper = 'ok'; }
       catch (e) { details.whisper = { error: String(e) }; ok = false; }
     }
 
     if (env.COQUI_TTS_URL) {
-      try { await audio.synthesize('dummy text'); details.coqui = 'ok'; }
+      try { await audio.synthesize('[healthcheck]'); details.coqui = 'ok'; }
       catch (e) { details.coqui = { error: String(e) }; ok = false; }
     }
 
@@ -284,6 +286,23 @@ export function buildApp(deps?: Partial<AppDeps>): FastifyInstance {
     const corr = (req as any).id;
     const route = '/webhook/generate-audio';
 
+    // heartbeat START
+    if (comms) {
+      comms.publishHeartbeat({
+        from_agent: 'orchestrator',
+        team: 'orange',
+        role: 'impl',
+        tm_ids: ['generate-audio'],
+        task_id: String(notebookId ?? ''),
+        event: 'TTS_JOB',
+        status: 'START',
+        severity: 'INFO',
+        timestamp: new Date().toISOString(),
+        correlation_id: corr,
+        details: 'TTS job started'
+      }).catch(() => {});
+    }
+
     jobs.add('generate-audio', async () => {
       try {
         const t0 = Date.now();
@@ -313,9 +332,42 @@ export function buildApp(deps?: Partial<AppDeps>): FastifyInstance {
             } catch {}
           }
         }
+
+        // heartbeat DONE
+        if (comms) {
+          comms.publishHeartbeat({
+            from_agent: 'orchestrator',
+            team: 'orange',
+            role: 'impl',
+            tm_ids: ['generate-audio'],
+            task_id: String(notebookId ?? ''),
+            event: 'TTS_JOB',
+            status: 'DONE',
+            severity: 'INFO',
+            timestamp: new Date().toISOString(),
+            correlation_id: corr,
+            details: 'TTS job completed'
+          }).catch(() => {});
+        }
       } catch (e) {
         try { if ((db as any).updateNotebookStatus && notebookId) await (db as any).updateNotebookStatus(notebookId, 'failed'); } catch {}
         if (callbackUrl) { try { await undiciRequest(callbackUrl, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ notebook_id: notebookId, status: 'failed' }) }); app.log.info({ correlation_id: corr, event_code: 'CALLBACK_SENT', route, callback_host: (() => { try { return new URL(String(callbackUrl)).host; } catch { return undefined; } })() }, 'Callback sent'); } catch {} }
+        // blocker CRITICAL
+        if (comms) {
+          comms.publishBlocker({
+            from_agent: 'orchestrator',
+            team: 'orange',
+            role: 'impl',
+            tm_ids: ['generate-audio'],
+            task_id: String(notebookId ?? ''),
+            event: 'TTS_JOB',
+            status: 'FAILED',
+            severity: 'CRITICAL',
+            timestamp: new Date().toISOString(),
+            correlation_id: corr,
+            details: 'TTS job failed'
+          }).catch(() => {});
+        }
       }
     }, {});
 
@@ -381,7 +433,7 @@ export async function performBootChecks(app: FastifyInstance) {
 
   if (env.WHISPER_ASR_URL) {
     try {
-      await whisper.transcribe('http://example.com/dummy.wav');
+      await whisper.transcribe('http://localhost:0/health.wav');
       app.log.info('Whisper ASR connection: OK');
     } catch (e) {
       app.log.error({ err: e }, 'Whisper ASR connection: FAILED');
@@ -391,7 +443,7 @@ export async function performBootChecks(app: FastifyInstance) {
 
   if (env.COQUI_TTS_URL) {
     try {
-      await audio.synthesize('dummy text');
+      await audio.synthesize('[healthcheck]');
       app.log.info('Coqui TTS connection: OK');
     } catch (e) {
       app.log.error({ err: e }, 'Coqui TTS connection: FAILED');

@@ -20,7 +20,7 @@ export function createDb(env) {
         },
         async insertMessage(notebookId, role, content) {
             if (!pool)
-                return { id: 'mock', notebook_id: notebookId, role, content };
+                return { id: 'local', notebook_id: notebookId, role, content };
             const client = await pool.connect();
             try {
                 const sql = 'insert into messages (notebook_id, role, content) values ($1,$2,$3) returning id';
@@ -40,7 +40,7 @@ export function createDb(env) {
                 timestamp: timestampIso ?? new Date().toISOString()
             };
             if (!pool)
-                return { id: 'mock', ...row };
+                return { id: 'local', ...row };
             const client = await pool.connect();
             try {
                 const sql = 'insert into n8n_chat_histories (notebook_id, role, content, user_id, timestamp) values ($1,$2,$3,$4,$5) returning id';
@@ -91,7 +91,7 @@ export function createDb(env) {
             }
         },
         async upsertDocuments(docs) {
-            // In mock/no-DB mode, keep behavior simple
+            // En mode sans DB, renvoyer simplement le compte pour compat dev local
             if (!pool)
                 return { count: docs.length };
             const client = await pool.connect();

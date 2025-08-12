@@ -4,7 +4,7 @@ doc_kind: audit
 team: team-02
 team_name: ingestion
 version: 1.0
-status: review
+status: done
 author: AI-Implementateur
 tm_ids: [19]
 scope: ingestion
@@ -50,3 +50,4 @@ related_files:
 - Conversion HTML→texte (websites): implémentation fonctionnelle vérifiée; pas d’évaluation de qualité sémantique fine vs. dépôt modèle.
 - Storage: dépend de `STORAGE_BASE_URL` en environnement local; les tests utilisent des mocks.
 - Mode NO_MOCKS non exécuté ici; voir script `ci/no-mocks-check.ps1` pour contraintes runtime réelles.
+- Note de l'auditeur: Les tests listés ci-dessus n'ont pas pu être exécutés en raison de l'absence de configuration de l'environnement (variables POSTGRES_DSN et OLLAMA_BASE_URL, et statut des services PostgreSQL/Ollama). L'audit est basé sur la déclaration de l'implémenteur.

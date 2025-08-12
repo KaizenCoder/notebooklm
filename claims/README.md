@@ -17,6 +17,11 @@
 - Au moins une ligne `#TEST:` pointant vers des preuves (tests, logs, artefacts)
 - Références attendues vers `docs/spec/...`, `docs/clone/...`, `docs/ANNEXES_PAYLOADS.md`
 
+### Index des claims de soumission
+- Claim global (IDs 1,3,4,10):
+  - Principal: `claims/20250812_tm-1+3+4+10-team-00-global-submission-claim_v1.1.md`
+  - Annexes: `claims/20250812_tm-1+3+4+10-team-00-global-annexes_v1.0.md`
+
 ### Workflow rapide
 1. Dupliquer le template; remplir front‑matter et sections (Résumé, Contexte, Portée, CA, Impacts, Risques, Références, Limitations, Suivi).
 2. Lier les IDs `.taskmaster` dans `tm_ids` et dans la section Suivi.
@@ -31,4 +36,4 @@
 #TEST: docs/spec/README.md
 
 ## Limitations
-- Ce README encadre le format documentaire; il n’introduit aucune exigence hors parité. 
+- Ce README encadre le format documentaire; il n’introduit aucune exigence hors parité.

@@ -31,15 +31,20 @@ Notre environnement est entièrement conteneurisé pour garantir l'uniformité.
 
 1.  **Clonez le dépôt** sur votre environnement local.
 2.  **Copiez le fichier d'environnement** : `cp .env.example .env`. Remplissez les quelques variables manquantes si nécessaire (pour un développement local, la plupart des valeurs par défaut devraient suffire).
-3.  **Lancez l'environnement (infra Compose à venir)** : le fichier `docker-compose.yml` sera livré via les tâches d’infra (voir `.taskmaster/tasks.json`, ex.: tâches 14/15/16/17/18). En attendant, assurez les services locaux minimums:
-    - PostgreSQL locale (avec pgvector) accessible via `POSTGRES_DSN`.
-    - Ollama opérationnel (réseau Docker interne), variable `OLLAMA_BASE_URL` configurée.
+3.  **Lancez l'environnement Docker Compose** :
+    - Fichiers: `infra/docker-compose.yml`
+    - Démarrage: `pwsh scripts/dev/up.ps1` (ou `pwsh scripts/dev/up.ps1 -Recreate`)
+    - Statut: `pwsh scripts/dev/status.ps1`
+    - PostgreSQL (pgvector) et Ollama seront exposés en local.
+    - DSN par défaut: `POSTGRES_DSN=postgres://notebook:notebook@localhost:5432/notebook`
+    - URL Ollama: `OLLAMA_BASE_URL=http://127.0.0.1:11434`
 4.  **Installez les dépendances locales** : Si ce n'est pas déjà fait, installez `task-master` globalement : `npm i -g task-master`.
 5.  **Variables d’environnement minimales (exemple)** :
-    - `POSTGRES_DSN=postgres://user:pass@postgres:5432/dbname`
-    - `OLLAMA_BASE_URL=http://ollama:11434`
+    - `POSTGRES_DSN=postgres://notebook:notebook@localhost:5432/notebook`
+    - `OLLAMA_BASE_URL=http://127.0.0.1:11434`
     - `NOTEBOOK_GENERATION_AUTH=changeme` (secret pour le header `Authorization`)
     - (optionnel) `STORAGE_BASE_URL=...` selon votre setup local
+    - Voir `.env.example` à la racine
     Reportez‑vous à `docs/spec/README.md` et `docs/TECHNICAL_GUIDELINES.md`.
 
 Votre environnement est maintenant prêt.

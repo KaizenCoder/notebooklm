@@ -33,9 +33,9 @@ Pour éviter les erreurs à l'exécution, l'API doit valider son environnement a
 - **Endpoint `/health` :** Un endpoint `GET /health` doit être disponible pour vérifier l'état de l'API.
 - **Vérifications au Démarrage (Fail Fast) :** Au lancement, avant de pouvoir servir des requêtes, l'API DOIT :
   1.  Valider la présence et le format de toutes les variables d'environnement requises.
-  2.  Vérifier la connectivité à la base de données PostgreSQL locale.
-  3.  Vérifier la connectivité au service Ollama (`OLLAMA_BASE_URL`).
-  4.  Confirmer que les modèles d'IA requis (ex: `nomic-embed-text`) sont disponibles via l'API d'Ollama.
+  2.  Vérifier la connectivité à la base de données PostgreSQL locale (`POSTGRES_DSN`, ex. `postgres://notebook:notebook@localhost:5432/notebook`).
+  3.  Vérifier la connectivité au service Ollama (`OLLAMA_BASE_URL`, ex. `http://127.0.0.1:11434`).
+  4.  Confirmer que les modèles d'IA requis (ex: `nomic-embed-text`, `llama3:instruct`) sont disponibles via l'API d'Ollama (`/api/tags`).
   - En cas d'échec d'une de ces vérifications, l'API doit s'arrêter avec un message de log explicite.
 
 ## 4. Choix d'Implémentation et Conventions

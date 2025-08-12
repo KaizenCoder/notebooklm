@@ -1,7 +1,11 @@
 /**
- * Coqui TTS (Text-to-Speech) Adapter
- * Implémentation minimale orientée production, avec fallbacks compatibles tests
+ * Coqui TTS Adapter
+ * Implementation for Task 8.4: TTS Integration
+ * 
+ * Production-ready with environment-based configuration
  */
+
+import { adapterConfig } from '../config/adapters';
 
 export interface CoquiVoice {
   id: string;
@@ -31,10 +35,12 @@ export interface CoquiSynthesisResult {
 export class CoquiAdapter {
   private baseUrl: string;
   private apiKey?: string;
+  private timeout: number;
 
-  constructor(baseUrl = 'http://localhost:5002', apiKey?: string) {
-    this.baseUrl = baseUrl;
-    this.apiKey = apiKey;
+  constructor(baseUrl?: string, apiKey?: string, timeout?: number) {
+    this.baseUrl = baseUrl || adapterConfig.coqui.baseUrl;
+    this.apiKey = apiKey || adapterConfig.coqui.apiKey;
+    this.timeout = timeout || adapterConfig.coqui.timeout;
   }
 
   async synthesize(

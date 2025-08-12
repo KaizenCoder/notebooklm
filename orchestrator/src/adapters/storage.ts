@@ -8,6 +8,7 @@
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { createHash } from 'crypto';
+import { adapterConfig } from '../config/adapters';
 
 // Enhanced security: Allowed MIME types for production
 const ALLOWED_MIME_TYPES = {
@@ -70,10 +71,14 @@ export interface StorageListOptions {
 export class StorageAdapter {
   private basePath: string;
   private metadataPath: string;
+  private maxFileSize: number;
+  private enableValidation: boolean;
 
-  constructor(basePath = './storage') {
-    this.basePath = path.resolve(basePath);
+  constructor(basePath?: string) {
+    this.basePath = path.resolve(basePath || adapterConfig.storage.basePath);
     this.metadataPath = path.join(this.basePath, '.metadata.json');
+    this.maxFileSize = adapterConfig.storage.maxFileSize;
+    this.enableValidation = adapterConfig.storage.enableValidation;
   }
 
   /**
@@ -313,6 +318,11 @@ export class StorageAdapter {
    * Additional security validation for file content
    */
   private async validateFileContent(buffer: Buffer, filename: string): Promise<void> {
+    // Skip validation in development if disabled
+    if (!this.enableValidation) {
+      return;
+    }
+
     const ext = path.extname(filename).toLowerCase();
     
     // Basic magic number validation for common types
@@ -324,10 +334,9 @@ export class StorageAdapter {
       throw new Error('PNG file validation failed: Invalid file header');
     }
     
-    // Check file size limits (10MB default)
-    const maxSize = process.env.MAX_FILE_SIZE ? parseInt(process.env.MAX_FILE_SIZE) : 10 * 1024 * 1024;
-    if (buffer.length > maxSize) {
-      throw new Error(`File size ${buffer.length} exceeds maximum allowed size ${maxSize}`);
+    // Check file size limits using configured max size
+    if (buffer.length > this.maxFileSize) {
+      throw new Error(`File size ${buffer.length} exceeds maximum allowed size ${this.maxFileSize}`);
     }
   }
 

@@ -29,10 +29,12 @@ export interface WhisperOptions {
 export class WhisperAdapter {
   private baseUrl: string;
   private apiKey?: string;
+  private timeout: number;
 
-  constructor(baseUrl = 'http://localhost:9000', apiKey?: string) {
-    this.baseUrl = baseUrl;
-    this.apiKey = apiKey;
+  constructor(baseUrl?: string, apiKey?: string, timeout?: number) {
+    this.baseUrl = baseUrl || adapterConfig.whisper.baseUrl;
+    this.apiKey = apiKey || adapterConfig.whisper.apiKey;
+    this.timeout = timeout || adapterConfig.whisper.timeout;
   }
 
   async transcribe(
@@ -54,29 +56,44 @@ export class WhisperAdapter {
     if (options.temperature) formData.append('temperature', String(options.temperature));
     if (options.response_format) formData.append('response_format', options.response_format);
 
-    const response = await fetch(`${this.baseUrl}/v1/audio/transcriptions`, {
-      method: 'POST',
-      headers: {
-        ...(this.apiKey && { 'Authorization': `Bearer ${this.apiKey}` }),
-      },
-      body: formData
-    });
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), this.timeout);
 
-    if (!response.ok) {
-      throw new Error(`Whisper API error: ${response.status} ${response.statusText}`);
+    try {
+      const response = await fetch(`${this.baseUrl}/v1/audio/transcriptions`, {
+        method: 'POST',
+        headers: {
+          ...(this.apiKey && { 'Authorization': `Bearer ${this.apiKey}` }),
+        },
+        body: formData,
+        signal: controller.signal
+      });
+
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+      if (!response.ok) {
+        throw new Error(`Whisper API error: ${response.status} ${response.statusText}`);
+      }
+
+      const result: any = await response.json();
+
+      // Fallbacks compatibles tests quand l'API renvoie minimal
+      const text: string = typeof result.text === 'string' && result.text.length > 0 ? result.text : 'Mock transcription';
+      const segments: WhisperTranscription['segments'] = Array.isArray(result.segments) && result.segments.length > 0
+        ? result.segments
+        : [{ start: 0, end: 1, text }];
+      const language = result.language ?? options.language ?? 'en';
+      const duration = typeof result.duration === 'number' ? result.duration : 1;
+
+      return { text, segments, language, duration };
+    } catch (error) {
+      clearTimeout(timeoutId);
+      if ((error as any).name === 'AbortError') {
+        throw new Error(`Whisper API timeout after ${this.timeout}ms`);
+      }
+      throw error;
     }
-
-    const result: any = await response.json();
-
-    // Fallbacks compatibles tests quand l'API renvoie minimal
-    const text: string = typeof result.text === 'string' && result.text.length > 0 ? result.text : 'Mock transcription';
-    const segments: WhisperTranscription['segments'] = Array.isArray(result.segments) && result.segments.length > 0
-      ? result.segments
-      : [{ start: 0, end: 1, text }];
-    const language = result.language ?? options.language ?? 'en';
-    const duration = typeof result.duration === 'number' ? result.duration : 1;
-
-    return { text, segments, language, duration };
   }
 
   async getModels(): Promise<Array<{ id: string; created: number; object: string }>> {

@@ -190,6 +190,23 @@ export function buildApp(deps?: Partial<AppDeps>): FastifyInstance {
     const idemKey = (req.headers['idempotency-key'] as string|undefined)?.trim();
     if (idemKey) { const cached = idem.get(idemKey); if (cached) return reply.code(cached.statusCode).send(cached.body); idem.begin(idemKey); }
 
+    // heartbeat START
+    if (comms) {
+      comms.publishHeartbeat({
+        from_agent: 'orchestrator',
+        team: 'orange',
+        role: 'impl',
+        tm_ids: ['process-document'],
+        task_id: String(body.source_id ?? ''),
+        event: 'PROCESS_DOCUMENT',
+        status: 'START',
+        severity: 'INFO',
+        timestamp: new Date().toISOString(),
+        correlation_id: (req as any).id,
+        details: 'Process document started'
+      }).catch(() => {});
+    }
+
     await app.docProc.processDocument({ notebookId: body.notebook_id, sourceId: body.source_id, text: body.text, sourceType: body.source_type, fileUrl: body.file_url, correlationId: (req as any).correlationId });
 
     app.jobs.add('process-document', async () => {
@@ -201,10 +218,42 @@ export function buildApp(deps?: Partial<AppDeps>): FastifyInstance {
             app.log.info({ correlation_id: (req as any).id, event_code: 'CALLBACK_SENT', route: '/webhook/process-document', callback_host: (() => { try { return new URL(String(body.callback_url)).host; } catch { return undefined; } })() }, 'Callback sent');
           } catch {}
         }
+        // heartbeat DONE
+        if (comms) {
+          comms.publishHeartbeat({
+            from_agent: 'orchestrator',
+            team: 'orange',
+            role: 'impl',
+            tm_ids: ['process-document'],
+            task_id: String(body.source_id ?? ''),
+            event: 'PROCESS_DOCUMENT',
+            status: 'DONE',
+            severity: 'INFO',
+            timestamp: new Date().toISOString(),
+            correlation_id: (req as any).id,
+            details: 'Process document completed'
+          }).catch(() => {});
+        }
       }
       catch (e) {
         try { if ((app.db as any).updateSourceStatus && body.source_id) await (app.db as any).updateSourceStatus(body.source_id, 'failed'); } catch {}
         if (body.callback_url) { try { await undiciRequest(body.callback_url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ source_id: body.source_id, status: 'failed' }) }); app.log.info({ correlation_id: (req as any).id, event_code: 'CALLBACK_SENT', route: '/webhook/process-document', callback_host: (() => { try { return new URL(String(body.callback_url)).host; } catch { return undefined; } })() }, 'Callback sent'); } catch {} }
+        // blocker CRITICAL
+        if (comms) {
+          comms.publishBlocker({
+            from_agent: 'orchestrator',
+            team: 'orange',
+            role: 'impl',
+            tm_ids: ['process-document'],
+            task_id: String(body.source_id ?? ''),
+            event: 'PROCESS_DOCUMENT',
+            status: 'FAILED',
+            severity: 'CRITICAL',
+            timestamp: new Date().toISOString(),
+            correlation_id: (req as any).id,
+            details: 'Process document failed'
+          }).catch(() => {});
+        }
       }
     }, {});
 
@@ -225,20 +274,44 @@ export function buildApp(deps?: Partial<AppDeps>): FastifyInstance {
 
     if (body.type === 'copied-text') {
       try {
+        // heartbeat START
+        if (comms) {
+          comms.publishHeartbeat({
+            from_agent: 'orchestrator', team: 'orange', role: 'impl', tm_ids: ['process-additional-sources'], task_id: String(body.sourceId ?? ''), event: 'PROCESS_ADDITIONAL_SOURCES', status: 'START', severity: 'INFO', timestamp: new Date().toISOString(), correlation_id: (req as any).id, details: 'copied-text start'
+          }).catch(() => {});
+        }
         requireFields(body, ['notebookId','content','sourceId']);
         try { await (app as any).storage.uploadText(String(body.content ?? ''), `sources/${body.notebookId}/${body.sourceId}.txt`); } catch {}
         await app.docProc.processDocument({ notebookId: body.notebookId, sourceId: body.sourceId, text: body.content, sourceType: 'txt', correlationId: (req as any).correlationId });
         const res = { success: true, message: 'copied-text data sent to webhook successfully', webhookResponse: 'OK' };
         if (idemKey) idem.complete(idemKey, { statusCode: 200, body: res });
+        // heartbeat DONE
+        if (comms) {
+          comms.publishHeartbeat({
+            from_agent: 'orchestrator', team: 'orange', role: 'impl', tm_ids: ['process-additional-sources'], task_id: String(body.sourceId ?? ''), event: 'PROCESS_ADDITIONAL_SOURCES', status: 'DONE', severity: 'INFO', timestamp: new Date().toISOString(), correlation_id: (req as any).id, details: 'copied-text done'
+          }).catch(() => {});
+        }
         return reply.code(200).send(res);
       } catch (e) {
         const res = { code: 'UNPROCESSABLE_ENTITY', message: 'Invalid copied-text payload' };
         if (idemKey) idem.complete(idemKey, { statusCode: 422, body: res });
+        // blocker
+        if (comms) {
+          comms.publishBlocker({
+            from_agent: 'orchestrator', team: 'orange', role: 'impl', tm_ids: ['process-additional-sources'], task_id: String(body.sourceId ?? ''), event: 'PROCESS_ADDITIONAL_SOURCES', status: 'FAILED', severity: 'CRITICAL', timestamp: new Date().toISOString(), correlation_id: (req as any).id, details: 'copied-text failed'
+          }).catch(() => {});
+        }
         return reply.code(422).send(res);
       }
     }
     if (body.type === 'multiple-websites') {
       try {
+        // heartbeat START
+        if (comms) {
+          comms.publishHeartbeat({
+            from_agent: 'orchestrator', team: 'orange', role: 'impl', tm_ids: ['process-additional-sources'], task_id: String(body.sourceId ?? ''), event: 'PROCESS_ADDITIONAL_SOURCES', status: 'START', severity: 'INFO', timestamp: new Date().toISOString(), correlation_id: (req as any).id, details: 'multiple-websites start'
+          }).catch(() => {});
+        }
         requireFields(body, ['notebookId','urls']);
         const urls: string[] = body.urls ?? [];
         const sourceIds: string[] = b.sourceIds ?? [];
@@ -251,10 +324,22 @@ export function buildApp(deps?: Partial<AppDeps>): FastifyInstance {
         }
         const res = { success: true, message: 'multiple-websites data sent to webhook successfully', webhookResponse: 'OK' };
         if (idemKey) idem.complete(idemKey, { statusCode: 200, body: res });
+        // heartbeat DONE
+        if (comms) {
+          comms.publishHeartbeat({
+            from_agent: 'orchestrator', team: 'orange', role: 'impl', tm_ids: ['process-additional-sources'], task_id: String(body.sourceId ?? ''), event: 'PROCESS_ADDITIONAL_SOURCES', status: 'DONE', severity: 'INFO', timestamp: new Date().toISOString(), correlation_id: (req as any).id, details: 'multiple-websites done'
+          }).catch(() => {});
+        }
         return reply.code(200).send(res);
       } catch (e) {
         const res = { code: 'UNPROCESSABLE_ENTITY', message: 'Invalid multiple-websites payload' };
         if (idemKey) idem.complete(idemKey, { statusCode: 422, body: res });
+        // blocker
+        if (comms) {
+          comms.publishBlocker({
+            from_agent: 'orchestrator', team: 'orange', role: 'impl', tm_ids: ['process-additional-sources'], task_id: String(body.sourceId ?? ''), event: 'PROCESS_ADDITIONAL_SOURCES', status: 'FAILED', severity: 'CRITICAL', timestamp: new Date().toISOString(), correlation_id: (req as any).id, details: 'multiple-websites failed'
+          }).catch(() => {});
+        }
         return reply.code(422).send(res);
       }
     }

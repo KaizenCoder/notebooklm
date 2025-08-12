@@ -220,7 +220,7 @@
       {
         "id": 6,
         "title": "POST /webhook/generate-audio",
-        "status": "in-progress",
+        "status": "review",
         "priority": "medium",
         "dependencies": [],
         "description": "[Clone strict] Set generating; TTS → upload to bucket audio; update notebook; callback success/failed.",

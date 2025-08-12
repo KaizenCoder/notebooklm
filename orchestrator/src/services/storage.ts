@@ -6,16 +6,21 @@ export function createStorage(env: Env) {
   const TIMEOUT_MS = 5000;
 
   return {
-    async fetchText(url: string): Promise<string> {
-      const res = await undiciRequest(url, { method: 'GET', headersTimeout: TIMEOUT_MS, bodyTimeout: TIMEOUT_MS });
+    async fetchText(url: string, correlationId?: string): Promise<string> {
+      const res = await undiciRequest(url, {
+        method: 'GET',
+        headers: correlationId ? { 'x-correlation-id': correlationId } : undefined,
+        headersTimeout: TIMEOUT_MS,
+        bodyTimeout: TIMEOUT_MS
+      });
       if (res.statusCode >= 400) throw new Error(`Storage GET failed: ${res.statusCode}`);
       return res.body.text();
     },
-    async upload(bin: Uint8Array, path: string): Promise<string> {
+    async upload(bin: Uint8Array, path: string, correlationId?: string): Promise<string> {
       if (!base) throw new Error('STORAGE_BASE_URL not configured');
       const res = await undiciRequest(`${base}/${path}`, {
         method: 'PUT',
-        headers: { 'content-type': 'application/octet-stream' },
+        headers: { 'content-type': 'application/octet-stream', ...(correlationId ? { 'x-correlation-id': correlationId } : {}) },
         headersTimeout: TIMEOUT_MS,
         bodyTimeout: TIMEOUT_MS,
         body: bin
@@ -23,10 +28,10 @@ export function createStorage(env: Env) {
       if (res.statusCode >= 400) throw new Error(`Storage PUT failed: ${res.statusCode}`);
       return `${base}/${path}`;
     },
-    async uploadText(text: string, path: string): Promise<string> {
+    async uploadText(text: string, path: string, correlationId?: string): Promise<string> {
       const encoder = new TextEncoder();
       const bin = encoder.encode(text);
-      return this.upload(bin, path);
+      return this.upload(bin, path, correlationId);
     }
   };
 }

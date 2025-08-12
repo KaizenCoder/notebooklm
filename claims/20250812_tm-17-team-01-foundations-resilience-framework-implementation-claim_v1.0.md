@@ -228,6 +228,11 @@ export const PRODUCTION_DEFAULTS = {
 3. **Monitoring production** des métriques de résilience
 4. **Extension** aux futurs services selon le pattern établi
 
+## Limitations
+
+- Application principalement à l’adaptateur Ollama à ce stade; extension prévue aux autres adapters (Supabase, Whisper, Storage).
+- Mesures exposées via `resilienceMetrics` en mémoire; export métriques à industrialiser.
+
 ## Conclusion
 
 Le framework de résilience est **complètement implémenté et validé** avec tous les composants nécessaires pour une architecture robuste. La base technique est solide avec 285 lignes de framework et 264 lignes de tests couvrant tous les scénarios.

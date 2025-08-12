@@ -1,39 +1,22 @@
-## Répertoire claims/
+# Claims — Exigences de communication (MANDATORY)
 
-- Objet: demandes de changement (claims) liées aux tâches Task‑Master et à la parité avec l’original.
-- Template: utiliser `claims/TEMPLATE_CLAIM.md` (copier puis remplir front‑matter + sections).
+Avant toute création/mise à jour d’un fichier dans `claims/`, publier un message Redis Streams:
 
-### Nommage des fichiers
-- `YYYYMMDD_tm-<ids>-team-<nn>-<team-name>-<scope>-claim[_resubmit-<n>]_v<maj.min>.md`
-- Exemples:
-  - `20250811_tm-2-team-02-ingestion-claim_v1.0.md`
-  - `20250812_tm-1+6-team-03-rag-audio-claim_resubmit-1_v1.1.md`
-- Règles: minuscules, kebab‑case, ASCII; plusieurs IDs via `+`; ne pas inclure le statut dans le nom (mettre dans le front‑matter).
+- Stream: `agents:pair:<team>` (ex: `agents:pair:team03`)
+- Payload minimal: `from_agent, team, role, to, topic=STATUS_UPDATE, event=CLAIM_PUBLISHED, status=INFO, timestamp, correlation_id, pair_id, links[]`
 
-### Front‑matter YAML requis
-- `title, doc_kind=claim, team, team_name, tm_ids, scope, status, version, author, related_files`
+Exemple:
+```bash
+redis-cli XADD agents:pair:team03 "*" \
+  from_agent "impl_team03" team "team03" role "impl" to "auditor_team03" \
+  topic "STATUS_UPDATE" event "CLAIM_PUBLISHED" status "INFO" \
+  timestamp "$(date -Is)" correlation_id "$(uuidgen)" pair_id "team03" \
+  links "[\"https://github.com/org/repo/pull/123\"]" details "Claim TM-03 publié"
+```
 
-### Exigences de conformité
-- Au moins une ligne `#TEST:` pointant vers des preuves (tests, logs, artefacts)
-- Références attendues vers `docs/spec/...`, `docs/clone/...`, `docs/ANNEXES_PAYLOADS.md`
+Rappels:
+- Inclure `#TEST:` et `## Limitations` dans le markdown.
+- `correlation_id` et `pair_id` obligatoires dans le message.
+- `coordination_heartbeat` déprécié: utiliser `agents:*`.
 
-### Index des claims de soumission
-- Claim global (IDs 1,3,4,10):
-  - Principal: `claims/20250812_tm-1+3+4+10-team-00-global-submission-claim_v1.1.md`
-  - Annexes: `claims/20250812_tm-1+3+4+10-team-00-global-annexes_v1.0.md`
-
-### Workflow rapide
-1. Dupliquer le template; remplir front‑matter et sections (Résumé, Contexte, Portée, CA, Impacts, Risques, Références, Limitations, Suivi).
-2. Lier les IDs `.taskmaster` dans `tm_ids` et dans la section Suivi.
-3. Soumettre à l’audit correspondant (fichier dans `audit/`, lié via `related_files`).
-
-### Rappels gouvernance
-- Flux: SPEC → IMPL → TEST → AUDIT
-- Commandes utiles:
-  - `task-master set-status --id=<ID> --status=in-progress`
-  - `task-master set-status --id=<ID> --status=review`
-
-#TEST: docs/spec/README.md
-
-## Limitations
-- Ce README encadre le format documentaire; il n’introduit aucune exigence hors parité.
+Voir: `docs/communication/CLAIMS_AUDITS_REDIS_POLICY.md`.

@@ -1,7 +1,7 @@
 import { request } from 'undici';
 export function createOllama(env) {
     const base = env.OLLAMA_BASE_URL ?? 'http://ollama:11434';
-    const TIMEOUT_MS = 3000;
+    const TIMEOUT_MS = 12000; // augmenté pour éviter Body Timeout sur modèles lourds
     const RETRIES = 2;
     async function withRetry(fn) {
         let lastErr;
@@ -29,7 +29,7 @@ export function createOllama(env) {
                     headers: { 'content-type': 'application/json', ...(correlationId ? { 'x-correlation-id': correlationId } : {}) },
                     headersTimeout: TIMEOUT_MS,
                     bodyTimeout: TIMEOUT_MS,
-                    body: JSON.stringify({ model, messages })
+                    body: JSON.stringify({ model, messages, stream: false })
                 });
                 if (res.statusCode >= 400)
                     throw new Error(`Ollama chat failed: ${res.statusCode}`);

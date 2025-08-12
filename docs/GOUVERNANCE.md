@@ -42,3 +42,27 @@ Livrables et traçabilité
 #TEST: ci/anti-mock-scan.ps1
 #TEST: ci/no-mocks-check.ps1
 #TEST: scripts/git-hooks/pre-push.ps1
+
+---
+
+## Politique de Communication Inter‑Agents (OBLIGATOIRE)
+
+- Tous les échanges inter‑agents (orchestrateur, implémenteur, auditeur, etc.) DOIVENT utiliser Redis Streams multi‑flux:
+  - Canaux: `agents:global`, `agents:orchestrator`, `agents:pair:<team>` (ex: `agents:pair:team03`).
+  - `coordination_heartbeat` est déprécié et ne doit plus être utilisé.
+- Heartbeats obligatoires par agent:
+  - Boot: `topic=HEARTBEAT, event=AGENT_ONLINE, status=ONLINE` sur pair + global
+  - Périodique: toutes les 600 s (± 30 s) `*_ALIVE`
+  - Shutdown: `AGENT_OFFLINE`
+- Claims & Audits (gating):
+  - Claim: publication préalable d’un `STATUS_UPDATE` sur `agents:pair:<team>` avec lien(s) de preuve/PR avant toute création/modif dans `claims/`.
+  - Audit: `AUDIT_REQUEST` (impl → audit) puis `AUDIT_VERDICT` (audit → impl) sur `agents:pair:<team>` avant toute création/modif dans `audit/`.
+- Conformité et preuves:
+  - Les documents `.md` de claims/audits doivent contenir au moins une ligne `#TEST:` et une section `## Limitations`.
+  - Les PR doivent référencer les IDs des messages Redis (ou logs équivalents) liés aux publications.
+- Référence: voir `docs/communication/INTER_AGENT_COMMUNICATION_REDIS_STREAMS.md` et `docs/communication/CLAIMS_AUDITS_REDIS_POLICY.md`.
+
+## Contrôles & CI (exigences)
+- Validation schéma des messages (AJV) en CI sur échantillons fournis.
+- Checklist de parité mise à jour pour vérifier l’usage du bus (`docs/CHECKLIST_TESTS_V1.md`, section 0).
+- Revue hebdo: point systématique sur les heartbeats et publications (claims, audits) observés sur `agents:*`.

@@ -8,9 +8,9 @@ Notre objectif est de créer un clone avec **parité stricte** de l'application 
 
 ## Philosophie du Projet : "Task-Master OS"
 
-Ce projet est entièrement piloté par l'outil `task-master`. Notre devise est : **"Pas de tâche, pas de travail."**
+Ce projet est entièrement piloté par l’outil `task-master`. Notre devise est : **"Pas de tâche, pas de travail."**
 
-Toute action, de la spécification à la validation, est une tâche tracée. `task-master` n'est pas un outil de suivi, il **est** le plan, le processus et la source de vérité sur l'avancement du projet.
+Toute action, de la spécification à la validation, est une tâche tracée. `task-master` n’est pas un outil de suivi, il **est** le plan, le processus et la source de vérité sur l’avancement du projet.
 
 ---
 
@@ -18,36 +18,26 @@ Toute action, de la spécification à la validation, est une tâche tracée. `ta
 
 Avant toute chose, vous devez lire et comprendre les documents de cadrage suivants. Ils ne sont pas optionnels.
 
-1.  **`DEVELOPMENT_PLAN.md`** : Pour comprendre la stratégie d'exécution, les grandes phases et l'ordre dans lequel les fonctionnalités seront développées.
+1.  **`DEVELOPMENT_PLAN.md`** : Stratégie d'exécution, grandes phases, ordre de développement.
 2.  **`docs/PRD.md`** : Vision produit, exigences, gouvernance Implémenteur/Auditeur.
 3.  **`docs/GOUVERNANCE.md`** : Règles du binôme, Task‑Master OS, revues de parité.
 4.  **`docs/TECHNICAL_GUIDELINES.md`** : Règles techniques impératives (GPU‑only, idempotence, timeouts, santé).
 5.  **`docs/spec/openapi.yaml`** et `docs/spec/README.md` : Source de vérité des contrats d’API.
-6.  **`docs/PARITY_REVIEW_CHECKLIST.md`** et **`docs/DECISIONS.md`** : Rituel de parité hebdomadaire et journal des décisions.
+6.  **`docs/PARITY_REVIEW_CHECKLIST.md`** et **`docs/DECISIONS.md`** : Rituel de parité et journal des décisions.
+7.  **Communication inter‑agents (Obligatoire)** : Lire `docs/communication/INTER_AGENT_COMMUNICATION_REDIS_STREAMS.md`.
 
 ## Étape 2 : Configuration de l'Environnement
 
 Notre environnement est entièrement conteneurisé pour garantir l'uniformité.
 
 1.  **Clonez le dépôt** sur votre environnement local.
-2.  **Copiez le fichier d'environnement** : `cp .env.example .env`. Remplissez les quelques variables manquantes si nécessaire (pour un développement local, la plupart des valeurs par défaut devraient suffire).
-3.  **Lancez l'environnement Docker Compose** :
-    - Fichiers: `infra/docker-compose.yml`
-    - Démarrage: `pwsh scripts/dev/up.ps1` (ou `pwsh scripts/dev/up.ps1 -Recreate`)
-    - Statut: `pwsh scripts/dev/status.ps1`
-    - PostgreSQL (pgvector) et Ollama seront exposés en local.
-    - DSN par défaut: `POSTGRES_DSN=postgres://notebook:notebook@localhost:5432/notebook`
-    - URL Ollama: `OLLAMA_BASE_URL=http://127.0.0.1:11434`
-4.  **Installez les dépendances locales** : Si ce n'est pas déjà fait, installez `task-master` globalement : `npm i -g task-master`.
+2.  **Copiez le fichier d'environnement** : `cp .env.example .env`.
+3.  **Lancez Docker Compose** (`infra/docker-compose.yml`).
+4.  **Installez les dépendances** locales.
 5.  **Variables d’environnement minimales (exemple)** :
     - `POSTGRES_DSN=postgres://notebook:notebook@localhost:5432/notebook`
     - `OLLAMA_BASE_URL=http://127.0.0.1:11434`
-    - `NOTEBOOK_GENERATION_AUTH=changeme` (secret pour le header `Authorization`)
-    - (optionnel) `STORAGE_BASE_URL=...` selon votre setup local
-    - Voir `.env.example` à la racine
-    Reportez‑vous à `docs/spec/README.md` et `docs/TECHNICAL_GUIDELINES.md`.
-
-Votre environnement est maintenant prêt.
+    - `NOTEBOOK_GENERATION_AUTH=changeme`
 
 ## Étape 3 : Votre Rôle et Votre Première Tâche
 
@@ -56,78 +46,143 @@ Ce projet fonctionne avec des **duos d'IA : un Implémenteur et un Auditeur.**
 -   **L'Implémenteur** code et teste (`IMPL`, `TEST`).
 -   **L'Auditeur** spécifie et valide la parité (`SPEC`, `AUDIT`).
 
-Votre première action en tant qu'IA est de vous situer :
+Premières actions :
 
-1.  **Consultez l'état du projet** :
-    ```bash
-    task-master list --with-subtasks
-    ```
-2.  **Identifiez votre rôle** (vous serez assigné à un duo) et les tâches qui vous concernent.
-3.  **Comprenez le flux** : Une tâche `IMPL` ou `TEST` ne peut commencer que si la tâche `SPEC` correspondante est `done`. Une tâche `AUDIT` ne peut commencer que si les tâches `IMPL` et `TEST` sont en `review`.
+1.  `task-master list --with-subtasks`
+2.  Identifiez votre rôle et vos tâches.
+3.  Comprenez le flux : SPEC → IMPL/TEST → AUDIT.
 
-## Étape 4 : Le Cycle de Travail Quotidien
+## Étape 4 : Cycle de Travail Quotidien
 
-Votre routine de travail doit suivre ce cycle pour garantir la traçabilité et la cohérence.
-
-1.  **Synchronisez votre code** : `git pull origin main` (ou la branche principale).
-2.  **Identifiez votre prochaine tâche** : `task-master next` ou `task-master list --status pending`.
-3.  **Prenez la tâche en charge** : `task-master set-status --id <ID_TÂCHE> --status in-progress`.
-4.  **Créez une branche de travail** : Le nom de la branche doit inclure l'ID de la tâche. `git checkout -b feature/TM-<ID_TÂCHE>-description-courte`.
-5.  **Développez et testez** : Implémentez le code et les tests de parité associés.
-6.  **Commitez votre travail** : Chaque commit doit référencer l'ID de la tâche. `git commit -m "TM-<ID_TÂCHE>: Description de la modification"`.
-7.  **Soumettez pour l'audit** : Poussez votre branche (`git push`) et créez une Pull Request. Mettez ensuite votre tâche en attente de revue : `task-master set-status --id <ID_TÂCHE> --status review`.
-
-L'Auditeur prendra alors le relais.
+1.  `git pull`
+2.  `task-master next`
+3.  `task-master set-status --id <ID> --status in-progress`
+4.  `git checkout -b feature/TM-<ID>-...`
+5.  Implémentez + tests
+6.  `git commit -m "TM-<ID>: ..."`
+7.  PR + `task-master set-status --id <ID> --status review`
 
 ## Règles d'Or
 
-- **La Parité est Reine** : En cas de doute, le comportement du code dans `docs/clone/` est la seule et unique vérité.
-- **Task-Master est la Loi** : Pas de code sans tâche. Pas de commit sans référence à une tâche.
-- **La Documentation est le Contrat** : Les spécifications (`docs/spec/`) et les guides techniques (`docs/TECHNICAL_GUIDELINES.md`) ne sont pas des suggestions, ce sont des exigences.
+- **Parité** : le comportement dans `docs/clone/` fait foi.
+- **Task‑Master** : pas de code sans tâche.
+- **Documentation** : specs/guides techniques = exigences.
 
 ---
 
 ## Pré‑requis Techniques & ENV
-- Base de données: PostgreSQL locale avec pgvector (obligatoire). Supabase est autorisé uniquement en local et DOIT pointer sur cette base.
-- ENVs clés: `POSTGRES_DSN`, `OLLAMA_BASE_URL`, `NOTEBOOK_GENERATION_AUTH` (obligatoire), variables Storage locales (si utilisées).
-- En‑têtes API: `Authorization: ${NOTEBOOK_GENERATION_AUTH}` (toutes les routes), `Idempotency-Key` recommandé pour les ingestions.
+- PostgreSQL (pgvector), Ollama GPU‑only.
+- ENVs clés: `POSTGRES_DSN`, `OLLAMA_BASE_URL`, `NOTEBOOK_GENERATION_AUTH`.
+- En‑têtes API: `Authorization: ${NOTEBOOK_GENERATION_AUTH}`.
 
 ## Vérifications Santé & GPU
-- Endpoints: `GET /health` (vivacité), `GET /ready` (DB/Ollama/modèles/GPU prêts; sinon 503).
-- GPU‑only: toute IA (embeddings/LLM) doit s’exécuter sur GPU. Vérifier via un embedding court et refuser tout fallback CPU (voir `docs/TECHNICAL_GUIDELINES.md`).
+- `GET /health`, `GET /ready` (503 si non prêt).
+- GPU‑only (pas de fallback CPU).
 
 ## Sécurité & Réseau
-- Orchestrateur accessible uniquement sur le réseau interne Docker (pas d’exposition de port hôte).
-- Ne pas logguer de secrets; logs JSON structurés avec `correlation_id`.
+- Orchestrateur non exposé publiquement.
+- Logs JSON avec `correlation_id`.
 
 ## Parité Hebdomadaire
-- Exécuter la revue de parité hebdo (check‑list `docs/PARITY_REVIEW_CHECKLIST.md`).
-- Consigner tout écart/choix dans `docs/DECISIONS.md` avec IDs Task‑Master.
+- Check‑list `docs/PARITY_REVIEW_CHECKLIST.md`.
+- `docs/DECISIONS.md` pour toute décision.
 
 ## Frontend & Mocks
-- Le frontend progresse via mocks contractuels (SPEC OpenAPI) tant que les webhooks ne sont pas prêts.
-- Respecter strictement les shapes/réponses documentées.
+- Mocks contractuels tant que webhooks non prêts.
 
 ## Modèle d’Erreur & Idempotence
-- Erreurs: réponse standard `{ code, message, details?, correlation_id }` avec statuts `400|401|422|500`.
-- Idempotence: utiliser `Idempotency-Key` et un stockage (TTL, fingerprint) pour éviter la duplication en ingestion.
+- Réponse standard `{ code, message, details?, correlation_id }`.
+- Idempotence via `Idempotency-Key`.
 
-## Références Claims & Audits (Obligatoire)
+## Communication Inter‑Agents (Obligatoire)
 
-- Lire `docs/DOCUMENTATION_PROJET.md` — section "Claims & Audits (processus et conventions)".
-- Répertoires: `claims/` (demandes) et `audit/` (vérifications).
-- Templates:
-  - Claim: `claims/TEMPLATE_CLAIM.md`
-  - Audit: `audit/TEMPLATE_AUDIT.md`
-- Nommage (résumé):
-  - Claims: `YYYYMMDD_tm-<ids>-team-<nn>-<team-name>-<scope>-claim[_resubmit-<n>]_v<maj.min>.md`
-  - Audits: `YYYYMMDD_tm-<ids>-team-<nn>-<team-name>-<scope>-audit_v<maj.min>.md`
-- Front‑matter YAML requis: `title, doc_kind, team, team_name, tm_ids, scope, status, version, author, related_files`.
-- Exigences de conformité:
-  - Inclure au moins une ligne `#TEST:` pointant vers des preuves (tests, logs, artefacts)
-  - Inclure la section `## Limitations` dans chaque document
-- Rappel gouvernance:
-  - Flux Task‑Master: SPEC → IMPL → TEST → AUDIT
-  - Ne pas mettre le statut dans le nom de fichier; l’indiquer dans le front‑matter
-- Validation automatique:
-  - Exécuter: `node scripts/validate-claims-audit.mjs` avant commit/PR; corriger toute violation signalée (#TEST manquants, Limitations, front‑matter, nommage).
+Tous les agents (orchestrateur, implémenteur, auditeur, etc.) **DOIVENT** utiliser Redis Streams.
+
+## Communication Redis (OBLIGATOIRE)
+
+### Activation Explicite des Événements
+L'orchestrator et tous les agents DOIVENT implémenter les événements suivants :
+
+#### 1. Événements de Cycle de Vie
+- **AGENT_ONLINE** : au démarrage de l'application (boot Fastify)
+- **AGENT_ALIVE** : périodiquement toutes les 600s ± 30s (heartbeat de maintenance)
+- **AGENT_OFFLINE** : à l'arrêt propre de l'application (hook onClose)
+
+#### 2. Événements de Workflow
+- **STATUS_UPDATE** : avant publication d'une claim dans `claims/`
+- **AUDIT_REQUEST** : demande d'audit (impl → auditor)
+- **AUDIT_VERDICT** : verdict d'audit (auditor → impl)
+
+### Scripts de Communication
+Utiliser le script unifié pour les heartbeats :
+```bash
+# Mode boot (démarrage)
+node scripts/agent-heartbeat.mjs --mode boot --agent orchestrator --team orange --role impl
+
+# Mode loop (maintenance périodique)
+node scripts/agent-heartbeat.mjs --mode loop --redis redis://127.0.0.1:6379 --streams agents:pair:team03,agents:global --agent orchestrator --team orange --role impl --interval_ms 600000 --jitter_ms 30000
+
+# Mode shutdown (arrêt propre)
+node scripts/agent-heartbeat.mjs --mode shutdown --agent orchestrator --team orange --role impl
+```
+
+### Mapping des Streams
+- **`agents:global`** : messages globaux (heartbeats, status critiques)
+- **`agents:orchestrator`** : inbox spécifique orchestrator
+- **`agents:pair:<team>`** : communication duo impl/audit (ex: `agents:pair:team03`)
+- **`audit_requests`** : demandes d'audit (legacy, utiliser agents:pair prioritairement)
+- **`auditeur_compliance`** : verdicts d'audit (legacy, utiliser agents:pair prioritairement)
+- **~~`coordination_heartbeat`~~** : **DÉPRÉCIÉ** - utiliser exclusivement `agents:*`
+
+### Intégration Application
+Dans l'orchestrator Fastify :
+```typescript
+// Au démarrage (app.ts)
+app.ready(async () => {
+  if (comms) {
+    await comms.publishHeartbeat({
+      from_agent: 'orchestrator',
+      team: 'orange', 
+      role: 'impl',
+      event: 'AGENT_ONLINE',
+      // ... autres champs obligatoires
+    });
+  }
+});
+
+// À l'arrêt (hook onClose)
+app.addHook('onClose', async () => {
+  if (comms) {
+    await comms.publishHeartbeat({
+      event: 'AGENT_OFFLINE',
+      // ... autres champs
+    });
+  }
+});
+
+// Job périodique pour AGENT_ALIVE (si REDIS_URL présent)
+if (env.REDIS_URL && comms) {
+  setInterval(async () => {
+    await comms.publishHeartbeat({
+      event: 'ORCHESTRATOR_ALIVE',
+      // ... autres champs
+    });
+  }, 600000 + Math.random() * 60000); // 600s ± 30s
+}
+```
+
+- **Canaux**: `agents:global`, `agents:orchestrator`, `agents:pair:<team>`.
+- **Heartbeats (obligatoire)**:
+  - Boot: `AGENT_ONLINE` sur pair + global
+  - Périodique: toutes les 600 s (± 30 s) `*_ALIVE`
+  - Shutdown: `AGENT_OFFLINE`
+- **Obligations de publication**:
+  - Avant un Claim (`claims/`): publier `STATUS_UPDATE` sur `agents:pair:<team>` avec lien de preuve/PR
+  - Avant un Audit (`audit/`): publier `AUDIT_REQUEST` (impl → audit) puis `AUDIT_VERDICT` (audit → impl)
+- **Script recommandé**: `orchestrator/scripts/agent-heartbeat.mjs` (modes boot/loop/shutdown). Exemple:
+  ```bash
+  node scripts/agent-heartbeat.mjs --mode loop --redis redis://127.0.0.1:6379 --streams agents:pair:team03,agents:global --agent auditor_team03 --team team03 --role audit --to orchestrator --pair team03 --interval_ms 600000 --jitter_ms 30000
+  ```
+- **Dépréciation**: `coordination_heartbeat` → utiliser exclusivement `agents:*`.
+
+Consultez la référence détaillée: `docs/communication/INTER_AGENT_COMMUNICATION_REDIS_STREAMS.md`.

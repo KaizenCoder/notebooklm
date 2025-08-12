@@ -2,6 +2,13 @@
 
 Cette documentation couvre tous les aspects du projet NotebookLM, de la conception technique aux validations qualité.
 
+## Alerte MANDATORY — Communication inter‑agents
+Tous les échanges inter‑agents (orchestrateur, implémenteur, auditeur, etc.) DOIVENT passer par Redis Streams multi‑flux:
+- Canaux: `agents:global`, `agents:orchestrator`, `agents:pair:<team>`
+- Heartbeats: `AGENT_ONLINE` au boot puis `*_ALIVE` toutes les 600 s (± 30 s) sur pair + global
+- Claims/Audits: publication préalable sur `agents:pair:<team>` (`STATUS_UPDATE`, `AUDIT_REQUEST`, `AUDIT_VERDICT`)
+- Références: `docs/communication/INTER_AGENT_COMMUNICATION_REDIS_STREAMS.md`, `docs/communication/CLAIMS_AUDITS_REDIS_POLICY.md`
+
 ## Structure de la Documentation
 
 ### 📋 Spécifications (`/spec/`)
@@ -20,8 +27,8 @@ Cette documentation couvre tous les aspects du projet NotebookLM, de la concepti
 - Synchronisation Task-Master
 
 ### 📞 Communication (`/communication/`)
+- Référence bus Redis Streams multi‑flux (OBLIGATOIRE)
 - Templates et guidelines de communication
-- Rapports de sessions et meetings
 
 ### 🧩 Clone (`/clone/`)
 - Documentation du système original à cloner
@@ -34,7 +41,7 @@ Cette documentation couvre tous les aspects du projet NotebookLM, de la concepti
 ## Documents Principaux
 
 ### Gouvernance et Processus
-- `GOUVERNANCE.md` - Framework gouvernance projet
+- `GOUVERNANCE.md` - Framework gouvernance projet (inclut la politique Redis Streams obligatoire)
 - `TECHNICAL_GUIDELINES.md` - Guidelines techniques
 - `DECISIONS.md` - Log des décisions architecturales
 
@@ -45,7 +52,7 @@ Cette documentation couvre tous les aspects du projet NotebookLM, de la concepti
 
 ### Qualité et Tests
 - `TEST_REPORT_V1.md` - Rapports de tests
-- `CHECKLIST_TESTS_V1.md` - Checklists de validation
+- `CHECKLIST_TESTS_V1.md` - Checklists de validation (section 0: communication Redis obligatoire)
 - `PARITY_REVIEW_CHECKLIST.md` - Vérification parité
 
 ## Liens avec Autres Dossiers
@@ -87,10 +94,10 @@ author: [nom]
 
 ## Utilisation
 
-1. **Développeurs** → Consulter `/spec/` pour APIs et contrats
-2. **QA/Test** → Utiliser `/validation/` pour contrôles qualité
-3. **Project Managers** → Suivre `/coordination/` pour avancement
-4. **Auditeurs** → Référencer `/audit/` et `/claims/` pour validations
+1. **Développeurs** → `/spec/` pour APIs et contrats
+2. **QA/Test** → `/validation/` pour contrôles qualité
+3. **Project Managers** → `/coordination/` pour avancement
+4. **Auditeurs** → `/audit/` et `/claims/` + bus Redis (références ci‑dessus)
 
 ---
 

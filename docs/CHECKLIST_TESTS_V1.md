@@ -5,6 +5,13 @@ Références croisées: voir `PRD.md` (exigences et critères) et `TEST_REPORT_V
 
 Objectif: valider la parité fonctionnelle V1 (ingestion/indexation, chat RAG avec citations, transcription audio locale et génération audio locale) en environnement local, offline après installation initiale.
 
+## 0) Communication inter‑agents (OBLIGATOIRE)
+- [ ] Tous les agents publient leurs heartbeats via Redis Streams (`agents:pair:<team>` + `agents:global`)
+- [ ] Claims: `STATUS_UPDATE` publié sur `agents:pair:<team>` avec liens de preuve/PR avant tout fichier sous `claims/`
+- [ ] Audits: `AUDIT_REQUEST` (impl → audit) puis `AUDIT_VERDICT` (audit → impl) sur `agents:pair:<team>` avant tout fichier sous `audit/`
+- [ ] Consommation fiable `XREADGROUP` + `XACK` avec groupes par rôle
+- [ ] `correlation_id` et `pair_id` présents dans tous les messages
+
 ## 1) Prérequis & Environnement
 - [ ] Environnement local conforme au package original (Docker Desktop, services locaux)
 - [ ] Base de données PostgreSQL locale (pgvector) opérationnelle

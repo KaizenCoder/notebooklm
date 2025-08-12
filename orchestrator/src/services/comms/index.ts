@@ -37,6 +37,12 @@ export function createComms(env: Env): Comms | null {
   client.on('error', (err) => { /* eslint-disable no-console */ console.error('Redis error', err); });
   const ready = client.connect();
 
+  // Canaux conformes aux spécifications ONBOARDING_AI.md
+  const AGENTS_GLOBAL = 'agents:global';
+  const AGENTS_ORCHESTRATOR = 'agents:orchestrator';  
+  const AGENTS_PAIR_TEAM03 = 'agents:pair:team03';
+  
+  // Fallback vers anciens noms pour compatibilité
   const HEARTBEAT_STREAM = (env as any).REDIS_STREAM_HEARTBEAT || 'coordination_heartbeat';
   const BLOCKERS_STREAM = (env as any).REDIS_STREAM_BLOCKERS || 'coordination_blockers';
   const AUDIT_REQ_STREAM = (env as any).REDIS_STREAM_AUDIT_REQ || 'audit_requests';
@@ -53,11 +59,27 @@ export function createComms(env: Env): Comms | null {
     await client.xAdd(stream, '*', flat as any);
   }
 
+  async function publishToMultipleStreams(msg: InterTeamMessage & Record<string, unknown>, streams: string[]) {
+    await ready;
+    const promises = streams.map(stream => xadd(stream, msg));
+    await Promise.allSettled(promises);
+  }
+
   return {
-    async publishHeartbeat(msg) { await xadd(HEARTBEAT_STREAM, msg); },
-    async publishBlocker(msg) { await xadd(BLOCKERS_STREAM, msg); },
-    async publishAuditRequest(msg) { await xadd(AUDIT_REQ_STREAM, msg); },
-    async publishAuditVerdict(msg) { await xadd(AUDIT_VERDICT_STREAM, msg); },
+    async publishHeartbeat(msg) { 
+      // Publier sur les canaux spécifiés dans ONBOARDING_AI.md
+      await publishToMultipleStreams(msg, [AGENTS_GLOBAL, AGENTS_ORCHESTRATOR, AGENTS_PAIR_TEAM03, HEARTBEAT_STREAM]);
+    },
+    async publishBlocker(msg) { 
+      // Publier blockers sur canaux critiques
+      await publishToMultipleStreams(msg, [AGENTS_GLOBAL, AGENTS_ORCHESTRATOR, BLOCKERS_STREAM]);
+    },
+    async publishAuditRequest(msg) { 
+      await publishToMultipleStreams(msg, [AGENTS_GLOBAL, AGENTS_PAIR_TEAM03, AUDIT_REQ_STREAM]);
+    },
+    async publishAuditVerdict(msg) { 
+      await publishToMultipleStreams(msg, [AGENTS_GLOBAL, AGENTS_PAIR_TEAM03, AUDIT_VERDICT_STREAM]);
+    },
     async close() { try { await client.disconnect(); } catch {} }
   };
 }

@@ -38,6 +38,85 @@ export function buildApp(deps?: Partial<AppDeps>): FastifyInstance {
   const idem = createIdempotencyStore(Number((env as any).IDEMPOTENCY_TTL_MS) || undefined);
   const comms = createComms(env);
   let gpuProbeCache: { ts: number; ok: boolean } = { ts: 0, ok: false };
+  let heartbeatService: any = null;
+
+  // Service de heartbeat périodique selon spécifications ONBOARDING_AI.md
+  if (comms && env.REDIS_URL) {
+    const HeartbeatService = require('../scripts/heartbeat-service.cjs');
+    heartbeatService = new HeartbeatService();
+    // Démarrage asynchrone pour ne pas bloquer le démarrage de l'app
+    heartbeatService.start().catch((error: any) => {
+      app.log.warn({ error: error.message }, 'Failed to start heartbeat service');
+    });
+  }
+
+  // Hook AGENT_ONLINE au boot Fastify (correction auditeur équipe 2)
+  app.ready(async () => {
+    if (comms) {
+      try {
+        const { randomUUID } = await import('crypto');
+        await comms.publishHeartbeat({
+          from_agent: 'orchestrator',
+          team: 'orange',
+          role: 'impl',
+          tm_ids: ['orchestrator-boot'],
+          task_id: 'orchestrator-startup',
+          event: 'AGENT_ONLINE',
+          status: 'ONLINE',
+          severity: 'INFO' as const,
+          timestamp: new Date().toISOString(),
+          correlation_id: randomUUID(),
+          details: 'Orchestrator Fastify application started'
+        });
+        app.log.info('AGENT_ONLINE heartbeat sent on app ready');
+      } catch (error: any) {
+        app.log.warn({ error: error.message }, 'Failed to send AGENT_ONLINE heartbeat');
+      }
+    }
+
+    // Job périodique pour ORCHESTRATOR_ALIVE si REDIS_URL présent (correction auditeur équipe 2)
+    if (comms && env.REDIS_URL) {
+      const sendAliveHeartbeat = async () => {
+        try {
+          const { randomUUID } = await import('crypto');
+          await comms.publishHeartbeat({
+            from_agent: 'orchestrator',
+            team: 'orange',
+            role: 'impl',
+            tm_ids: ['orchestrator-alive'],
+            task_id: 'orchestrator-maintenance',
+            event: 'ORCHESTRATOR_ALIVE',
+            status: 'ONLINE',
+            severity: 'INFO' as const,
+            timestamp: new Date().toISOString(),
+            correlation_id: randomUUID(),
+            details: 'Orchestrator periodic alive heartbeat'
+          });
+          app.log.debug('ORCHESTRATOR_ALIVE periodic heartbeat sent');
+        } catch (error: any) {
+          app.log.warn({ error: error.message }, 'Failed to send ORCHESTRATOR_ALIVE heartbeat');
+        }
+      };
+
+      // Premier alive après 30s, puis tous les 600s ± 30s
+      setTimeout(() => {
+        sendAliveHeartbeat();
+        
+        const scheduleNext = () => {
+          const baseInterval = 600000; // 10 minutes
+          const jitter = 30000;        // ± 30s
+          const interval = baseInterval + (Math.random() * 2 - 1) * jitter;
+          
+          setTimeout(() => {
+            sendAliveHeartbeat().finally(scheduleNext);
+          }, interval);
+        };
+        
+        scheduleNext();
+        app.log.info('ORCHESTRATOR_ALIVE periodic job started (600s ± 30s)');
+      }, 30000);
+    }
+  });
 
   async function ensureGpuAvailable(): Promise<boolean> {
     if (env.GPU_ONLY !== '1' || !env.OLLAMA_EMBED_MODEL) return true;
@@ -459,6 +538,49 @@ export function buildApp(deps?: Partial<AppDeps>): FastifyInstance {
     const response = { success: true, message: 'Audio generation started' };
     if (idemKey) idem.complete(idemKey, { statusCode: 202, body: response });
     return reply.code(202).send(response);
+  });
+
+  // Hook de fermeture propre pour arrêter le service de heartbeat
+  app.addHook('onClose', async () => {
+    // Envoyer AGENT_OFFLINE avant fermeture (correction auditeur équipe 2)
+    if (comms) {
+      try {
+        const { randomUUID } = await import('crypto');
+        await comms.publishHeartbeat({
+          from_agent: 'orchestrator',
+          team: 'orange',
+          role: 'impl',
+          tm_ids: ['orchestrator-shutdown'],
+          task_id: 'orchestrator-shutdown',
+          event: 'AGENT_OFFLINE',
+          status: 'OFFLINE',
+          severity: 'INFO' as const,
+          timestamp: new Date().toISOString(),
+          correlation_id: randomUUID(),
+          details: 'Orchestrator Fastify application shutting down'
+        });
+        app.log.info('AGENT_OFFLINE heartbeat sent before shutdown');
+      } catch (error: any) {
+        app.log.warn({ error: error.message }, 'Failed to send AGENT_OFFLINE heartbeat');
+      }
+    }
+    
+    if (heartbeatService) {
+      try {
+        await heartbeatService.stop();
+        app.log.info('Heartbeat service stopped gracefully');
+      } catch (error: any) {
+        app.log.warn({ error: error.message }, 'Error stopping heartbeat service');
+      }
+    }
+    if (comms) {
+      try {
+        await comms.close();
+        app.log.info('Redis communications closed');
+      } catch (error: any) {
+        app.log.warn({ error: error.message }, 'Error closing Redis communications');
+      }
+    }
   });
 
   return app;

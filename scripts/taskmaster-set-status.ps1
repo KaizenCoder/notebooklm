@@ -44,11 +44,11 @@ try {
     if (-not $sub) { Write-Err "Sous-tâche $mainId.$subId introuvable" }
     $old = $sub.status
     $sub.status = $Status
-    Write-Info "Mise à jour $mainId.$subId: $old -> $Status"
+    Write-Info "Mise à jour $mainId.$subId`: $old -> $Status"
   } else {
     $old = $task.status
     $task.status = $Status
-    Write-Info "Mise à jour $mainId: $old -> $Status"
+    Write-Info "Mise à jour $mainId`: $old -> $Status"
   }
 
   # Ecriture sécurisée

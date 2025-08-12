@@ -8,5 +8,25 @@
     "hash": "e7415c37bdc4955a2b879ab0d78819898e17fd748995a435f98e9b63234ddc9b",
     "createdAt": "2025-08-12T13:14:10.813Z",
     "modifiedAt": "2025-08-12T13:14:10.813Z"
+  },
+  "1755004847803_3608b619_jko8k9sbppe": {
+    "id": "1755004847803_3608b619_jko8k9sbppe",
+    "name": "1755004847803_3608b619_jko8k9sbppe_test.unknown",
+    "path": "C:\\Dev\\my_notebooklm\\orchestrator\\test-storage-dev\\1755004847803_3608b619_jko8k9sbppe_test.unknown",
+    "size": 17,
+    "mimeType": "application/octet-stream",
+    "hash": "e7415c37bdc4955a2b879ab0d78819898e17fd748995a435f98e9b63234ddc9b",
+    "createdAt": "2025-08-12T13:20:47.804Z",
+    "modifiedAt": "2025-08-12T13:20:47.804Z"
+  },
+  "1755005031437_3608b619_ap8h3p2a1x": {
+    "id": "1755005031437_3608b619_ap8h3p2a1x",
+    "name": "1755005031437_3608b619_ap8h3p2a1x_test.unknown",
+    "path": "C:\\Dev\\my_notebooklm\\orchestrator\\test-storage-dev\\1755005031437_3608b619_ap8h3p2a1x_test.unknown",
+    "size": 17,
+    "mimeType": "application/octet-stream",
+    "hash": "e7415c37bdc4955a2b879ab0d78819898e17fd748995a435f98e9b63234ddc9b",
+    "createdAt": "2025-08-12T13:23:51.437Z",
+    "modifiedAt": "2025-08-12T13:23:51.437Z"
   }
 }

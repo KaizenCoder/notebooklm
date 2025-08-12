@@ -1,0 +1,11 @@
+{
+  "from_agent": "orchestrator",
+  "team": "orange",
+  "role": "impl",
+  "tm_ids": ["generate-audio"],
+  "task_id": "nb_test",
+  "event": "TTS_JOB",
+  "status": "START",
+  "timestamp": "2025-01-01T00:00:00.000Z",
+  "correlation_id": "abc12345"
+}

@@ -49,7 +49,7 @@
       {
         "id": 2,
         "title": "POST /webhook/process-document",
-        "status": "pending",
+        "status": "done",
         "priority": "high",
         "dependencies": [],
         "description": "[Clone strict] Extract → chunk → embed(768) → upsert documents → update sources → callback.",
@@ -57,22 +57,22 @@
           {
             "id": 4,
             "title": "SPEC: Contrat OpenAPI + I/O (process-document)",
-            "status": "in-progress"
+            "status": "done"
           },
           {
             "id": 5,
             "title": "IMPL: Handler + extraction + indexation",
-            "status": "pending"
+            "status": "done"
           },
           {
             "id": 6,
             "title": "TEST: Contrat HTTP + intégration (Storage/DB mocks)",
-            "status": "pending"
+            "status": "done"
           },
           {
             "id": 7,
             "title": "AUDIT: Parité pipeline + callback",
-            "status": "review"
+            "status": "done"
           },
           {
             "id": 1,
@@ -82,19 +82,19 @@
           {
             "id": 2,
             "title": "Integration tests (Storage + embeddings + DB mocks)",
-            "status": "pending"
+            "status": "done"
           },
           {
             "id": 3,
             "title": "E2E smoke via Edge Function process-document",
-            "status": "pending"
+            "status": "done"
           }
         ]
       },
       {
         "id": 3,
         "title": "POST /webhook/process-additional-sources (multiple-websites)",
-        "status": "pending",
+        "status": "done",
         "priority": "medium",
         "dependencies": [
           "2"
@@ -104,22 +104,22 @@
           {
             "id": 3,
             "title": "SPEC: Contrat I/O (additional-sources websites)",
-            "status": "in-progress"
+            "status": "done"
           },
           {
             "id": 4,
             "title": "IMPL: Handler websites + stockage .txt",
-            "status": "pending"
+            "status": "done"
           },
           {
             "id": 5,
             "title": "TEST: Contrat + intégration (Storage/DB mocks)",
-            "status": "pending"
+            "status": "done"
           },
           {
             "id": 6,
             "title": "AUDIT: Parité flux websites",
-            "status": "review"
+            "status": "done"
           },
           {
             "id": 1,
@@ -129,14 +129,14 @@
           {
             "id": 2,
             "title": "Integration tests (Storage + DB mocks)",
-            "status": "pending"
+            "status": "done"
           }
         ]
       },
       {
         "id": 4,
         "title": "POST /webhook/process-additional-sources (copied-text)",
-        "status": "pending",
+        "status": "done",
         "priority": "medium",
         "dependencies": [
           "2"
@@ -146,22 +146,22 @@
           {
             "id": 3,
             "title": "SPEC: Contrat I/O (additional-sources copied-text)",
-            "status": "in-progress"
+            "status": "done"
           },
           {
             "id": 4,
             "title": "IMPL: Handler copied-text + stockage .txt",
-            "status": "pending"
+            "status": "done"
           },
           {
             "id": 5,
             "title": "TEST: Contrat + intégration (Storage/DB mocks)",
-            "status": "pending"
+            "status": "done"
           },
           {
             "id": 6,
             "title": "AUDIT: Parité flux copied-text",
-            "status": "review"
+            "status": "done"
           },
           {
             "id": 1,
@@ -171,14 +171,14 @@
           {
             "id": 2,
             "title": "Integration tests (Storage + DB mocks)",
-            "status": "pending"
+            "status": "done"
           }
         ]
       },
       {
         "id": 5,
         "title": "POST /webhook/generate-notebook-content (202)",
-        "status": "pending",
+        "status": "done",
         "priority": "medium",
         "dependencies": [
           "2"
@@ -188,22 +188,22 @@
           {
             "id": 3,
             "title": "SPEC: Contrat I/O (generate-notebook-content)",
-            "status": "in-progress"
+            "status": "done"
           },
           {
             "id": 4,
             "title": "IMPL: Handler 202 + job asynchrone",
-            "status": "pending"
+            "status": "done"
           },
           {
             "id": 5,
             "title": "TEST: Contrat + intégration (updates DB)",
-            "status": "pending"
+            "status": "done"
           },
           {
             "id": 6,
             "title": "AUDIT: Parité lifecycle génération",
-            "status": "pending"
+            "status": "done"
           },
           {
             "id": 1,
@@ -213,14 +213,14 @@
           {
             "id": 2,
             "title": "Integration tests (background updates, DB mocks)",
-            "status": "pending"
+            "status": "done"
           }
         ]
       },
       {
         "id": 6,
         "title": "POST /webhook/generate-audio",
-        "status": "pending",
+        "status": "done",
         "priority": "medium",
         "dependencies": [],
         "description": "[Clone strict] Set generating; TTS → upload to bucket audio; update notebook; callback success/failed.",
@@ -228,7 +228,7 @@
           {
             "id": 3,
             "title": "SPEC: Contrat I/O (generate-audio)",
-            "status": "in-progress"
+            "status": "done"
           },
           {
             "id": 4,
@@ -243,7 +243,7 @@
           {
             "id": 6,
             "title": "AUDIT: Parité génération audio",
-            "status": "review"
+            "status": "done"
           },
           {
             "id": 1,
@@ -295,7 +295,7 @@
       {
         "id": 8,
         "title": "Service adapters (Supabase/Ollama/Whisper/Coqui/Storage)",
-        "status": "review",
+        "status": "done",
         "priority": "high",
         "dependencies": [],
         "description": "[Clone strict] Thin, mockable adapters; env-driven endpoints; no env renaming.",
@@ -318,7 +318,7 @@
           {
             "id": 8,
             "title": "AUDIT: Parité appels/params",
-            "status": "pending"
+            "status": "review"
           },
           {
             "id": 1,
@@ -333,7 +333,7 @@
           {
             "id": 3,
             "title": "Whisper/Coqui mocks",
-            "status": "pending"
+            "status": "done"
           },
           {
             "id": 4,
@@ -345,7 +345,7 @@
       {
         "id": 9,
         "title": "Chunking + embeddings (768) + upsert documents",
-        "status": "pending",
+        "status": "review",
         "priority": "high",
         "dependencies": [
           "8"
@@ -355,34 +355,34 @@
           {
             "id": 2,
             "title": "SPEC: Règles chunking + métadonnées",
-            "status": "pending"
+            "status": "review"
           },
           {
             "id": 3,
             "title": "IMPL: Chunker tokens~200 + overlap + batch embeddings 768d",
-            "status": "in-progress"
+            "status": "review"
           },
           {
             "id": 4,
             "title": "TEST: Dims, overlap, idempotence",
-            "status": "in-progress"
+            "status": "done"
           },
           {
             "id": 5,
             "title": "AUDIT: Parité indexation/metadata",
-            "status": "pending"
+            "status": "review"
           },
           {
             "id": 1,
             "title": "Unit tests (metadata + dims)",
-            "status": "pending"
+            "status": "done"
           }
         ]
       },
       {
         "id": 10,
         "title": "Logging & errors (align original)",
-        "status": "pending",
+        "status": "done",
         "priority": "medium",
         "dependencies": [],
         "description": "[Clone strict] Step logs; actionable errors; no new schemas.",
@@ -395,12 +395,22 @@
           {
             "id": 3,
             "title": "IMPL: Logs corrélés (correlation_id) + gestion erreurs (ErrorResponse)",
-            "status": "in-progress"
+            "status": "done"
+          },
+          {
+            "id": 8,
+            "title": "IMPL: Injecter correlation_id dans tous les logs applicatifs (hooks) + events chat/audio",
+            "status": "done"
+          },
+          {
+            "id": 9,
+            "title": "IMPL: Évènements étape RAG/TTS/UPLOAD/CALLBACK + métriques latences",
+            "status": "done"
           },
           {
             "id": 4,
             "title": "TEST: Assertions logs + erreurs",
-            "status": "pending"
+            "status": "done"
           },
           {
             "id": 5,
@@ -410,17 +420,37 @@
           {
             "id": 6,
             "title": "IMPL: Redaction secrets + sampling",
+            "status": "done"
+          },
+          {
+            "id": 10,
+            "title": "TEST: Redaction — pas de header Authorization ni secrets en logs",
+            "status": "done"
+          },
+          {
+            "id": 11,
+            "title": "TEST: Métriques latences présentes dans logs d’étapes",
+            "status": "done"
+          },
+          {
+            "id": 12,
+            "title": "IMPL: Métriques latences chat (match_documents, rag_total)",
+            "status": "pending"
+          },
+          {
+            "id": 13,
+            "title": "IMPL: Évènements EXTRACT/EMBED/UPSERT pour process-document",
             "status": "pending"
           },
           {
             "id": 7,
             "title": "IMPL: Métriques latences (extract/embed/rag)",
-            "status": "pending"
+            "status": "done"
           },
           {
             "id": 1,
             "title": "Contract-consistent error responses",
-            "status": "pending"
+            "status": "done"
           }
         ]
       },
@@ -578,7 +608,7 @@
       {
         "id": 15,
         "title": "Idempotency-Key layer (ingestion ops)",
-        "status": "pending",
+        "status": "review",
         "priority": "high",
         "dependencies": [],
         "description": "[Clone strict] Support de l’en-tête Idempotency-Key avec stockage (TTL, fingerprint, statut) pour éviter doublons.",
@@ -591,17 +621,17 @@
           {
             "id": 2,
             "title": "IMPL: Middleware/DAO idempotence (process-document, additional-sources, generate-audio)",
-            "status": "in-progress"
+            "status": "review"
           },
           {
             "id": 3,
             "title": "TEST: Replays sans doublons DB (Idempotency-Key)",
-            "status": "in-progress"
+            "status": "done"
           },
           {
             "id": 4,
             "title": "AUDIT: Parité idempotence (ingestion)",
-            "status": "pending"
+            "status": "done"
           }
         ]
       },
@@ -640,7 +670,7 @@
       {
         "id": 17,
         "title": "Résilience: timeouts/retries + circuit breaker + backpressure",
-        "status": "pending",
+        "status": "done",
         "priority": "medium",
         "dependencies": [],
         "description": "[Clone strict] Politiques de robustesse pour appels externes et limites de concurrence par route.",
@@ -670,7 +700,7 @@
       {
         "id": 18,
         "title": "GPU-only enforcement (no CPU fallback)",
-        "status": "in-progress",
+        "status": "review",
         "priority": "high",
         "dependencies": [
           "8",
@@ -703,7 +733,7 @@
       {
         "id": 19,
         "title": "Équipe 2 — Ingestion gap closure (parité stricte)",
-        "status": "pending",
+        "status": "done",
         "priority": "high",
         "dependencies": [
           "2",
@@ -718,39 +748,39 @@
           {
             "id": 1,
             "title": "SPEC: Ajustements OpenAPI + mapping Edge (process-document/additional-sources)",
-            "status": "in-progress"
+            "status": "done"
           },
           {
             "id": 2,
             "title": "IMPL: Handler process-document (payload OpenAPI) + extraction + callback",
-            "status": "pending"
+            "status": "done"
           },
           {
             "id": 3,
             "title": "IMPL: Handler additional-sources (copied-text/multiple-websites)",
-            "status": "pending"
+            "status": "done"
           },
           {
             "id": 4,
             "title": "IMPL: Idempotency-Key (ingestion) + enforcements dims 768 + chunking tokens+overlap",
-            "status": "in-progress"
+            "status": "done"
           },
           {
             "id": 5,
             "title": "TEST: Callback success/failed + idempotence + dims 768 + overlap",
-            "status": "in-progress"
+            "status": "done"
           },
           {
             "id": 6,
             "title": "AUDIT: Parité finale ingestion + preuves logs",
-            "status": "pending"
+            "status": "done"
           }
         ]
       }
     ],
     "metadata": {
-      "created": "2025-08-11T13:58:41.290Z",
-      "updated": "2025-08-12T00:26:10.637Z",
+      "created": "2025-08-11T13:58:41.29Z",
+      "updated": "2025-08-12T11:25:00Z",
       "description": "Tasks for master context (clone parity, no MVP)"
     }
   }

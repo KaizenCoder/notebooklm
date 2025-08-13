@@ -3,7 +3,7 @@ import { request } from 'undici';
 
 export function createOllama(env: Env) {
   const base = env.OLLAMA_BASE_URL ?? 'http://ollama:11434';
-  const TIMEOUT_MS = 12000; // augmenté pour éviter Body Timeout sur modèles lourds
+  const TIMEOUT_MS = Number(env.OLLAMA_TIMEOUT_MS ?? '60000'); // 60s par défaut, configurable
   const RETRIES = 2;
 
   async function withRetry<T>(fn: () => Promise<T>): Promise<T> {

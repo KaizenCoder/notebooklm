@@ -13,6 +13,7 @@ const EnvSchema = z.object({
   OLLAMA_BASE_URL: z.string().url().default('http://ollama:11434'),
   OLLAMA_EMBED_MODEL: z.string().optional(),
   OLLAMA_LLM_MODEL: z.string().optional(),
+  OLLAMA_TIMEOUT_MS: z.string().optional(),
   GPU_ONLY: z.string().optional(),
   IDEMPOTENCY_TTL_MS: z.string().optional(),
   WHISPER_ASR_URL: z.string().url().optional(),

@@ -1,114 +1,114 @@
-# Orchestrator freeze (DB/Ollama) — RCA and Fix (2025-08-13)
+# Gel de l'orchestrateur (DB/Ollama) — RCA et correctif (2025-08-13)
 
-## Summary
-- Symptom: Orchestrator failed boot checks (DB auth errors), then Ollama models marked missing; later server failed to bind port 8000.
-- Root causes:
-  - PostgreSQL config error (`host_auth_method` invalid) and DB name/secret mismatches.
-  - Host port conflicts: Windows PostgreSQL service bound to 5432; another app bound to 8000.
-  - Env discrepancies: `localhost` vs `127.0.0.1` for Ollama; model tag mismatch (`nomic-embed-text` vs `nomic-embed-text:latest`).
-- Outcome: All services aligned; orchestrator boots and listens on 8080; DB/Ollama checks pass.
+## Résumé
+- Symptômes : l'orchestrateur échoue aux vérifications de démarrage (erreurs d'auth DB), puis modèles Ollama signalés manquants ; plus tard, impossible d'écouter sur le port 8000.
+- Causes racines :
+  - Erreur de configuration PostgreSQL (`host_auth_method` invalide) et divergences de nom de base/mot de passe.
+  - Conflits de ports hôte : service PostgreSQL Windows lié à 5432 ; une autre appli liée à 8000.
+  - Écarts d'environnement : `localhost` vs `127.0.0.1` pour Ollama ; décalage d'étiquette de modèle (`nomic-embed-text` vs `nomic-embed-text:latest`).
+- Résultat : tous les services sont alignés ; l'orchestrateur démarre et écoute sur 8080 ; vérifications DB/Ollama OK.
 
-## Symptoms
-- DB: `FATAL: password authentication failed for user "notebook"` and `database "notebooklm" does not exist`.
-- Postgres failed to start with: `unrecognized configuration parameter "host_auth_method"`.
-- Orchestrator: “Ollama models: MISSING” despite models present.
-- Server bind error: `EACCES: permission denied 0.0.0.0:8000`.
+## Symptômes
+- DB : `FATAL: password authentication failed for user "notebook"` et `database "notebooklm" does not exist`.
+- Postgres ne démarre pas avec : `unrecognized configuration parameter "host_auth_method"`.
+- Orchestrateur : « Ollama models: MISSING » alors que les modèles sont présents.
+- Erreur d'écoute serveur : `EACCES: permission denied 0.0.0.0:8000`.
 
-## Root cause analysis
+## Analyse des causes racines
 1. PostgreSQL
-   - Invalid parameter `host_auth_method` in `postgresql.conf` stopped startup.
-   - DB name mismatch across compose, healthcheck, and app DSN (e.g., `notebooklm` vs `agent_memory_notebooklm`).
-   - Password mismatch due to secrets vs plaintext divergence.
-   - Host port 5432 already occupied by Windows service `postgresql-x64-17` caused ambiguous connectivity.
+   - Paramètre invalide `host_auth_method` dans `postgresql.conf` bloquant le démarrage.
+   - Incohérence de nom de base entre compose, healthcheck et DSN de l'app (ex. `notebooklm` vs `agent_memory_notebooklm`).
+   - Décalage de mot de passe dû à l'usage mixte secrets vs clair.
+   - Port hôte 5432 déjà occupé par le service Windows `postgresql-x64-17`, rendant la connectivité ambiguë.
 2. Ollama
-   - `localhost` returned empty tags for the Node process while `127.0.0.1` returned the model list.
-   - Env var precedence allowed external env to override `.env` values.
-   - Embed model tag mismatch with installed name required `:latest`.
-3. Orchestrator
-   - Port 8000 already bound by a `Manager` process resulted in EACCES on listen.
+   - `localhost` renvoyait une liste vide pour le process Node alors que `127.0.0.1` listait les modèles.
+   - La précédence des variables d'env permettait à l'environnement hôte d'écraser le `.env`.
+   - Étiquette du modèle d'embedding nécessitant `:latest`.
+3. Orchestrateur
+   - Le port 8000 était déjà lié par un process `Manager` entraînant un EACCES à l'écoute.
 
-## Fix strategy (applied)
+## Stratégie de correction (appliquée)
 1. PostgreSQL
-   - Removed invalid `host_auth_method` from `infra/config/postgresql/postgresql.conf`.
-   - Ensured `infra/config/postgresql/pg_hba.conf` allows md5 for host connections.
-   - Unified DB name and credentials: `agent_memory_notebooklm`, user `notebook`, password `notebook`.
-   - Moved published port to avoid conflict: `55432:5432` in `infra/docker-compose.yml`.
-   - Reset DB user password inside the container and verified TCP auth.
-2. Env alignment
-   - Set DSN everywhere to `postgres://notebook:notebook@127.0.0.1:55432/agent_memory_notebooklm` in `.env` files.
-   - Forced `.env` to override host env in app by changing `src/env.ts` to `config({ override: true })`.
-3. Ollama configuration
-   - Used `OLLAMA_BASE_URL=http://127.0.0.1:11434` (not `localhost`).
-   - Normalized model names to installed tags: `nomic-embed-text:latest` and `phi3:mini`.
-4. Orchestrator port
-   - Switched `PORT=8080` in `orchestrator/.env` to avoid conflict with port 8000.
+   - Suppression de `host_auth_method` dans `infra/config/postgresql/postgresql.conf`.
+   - `infra/config/postgresql/pg_hba.conf` autorise md5 pour les connexions réseau.
+   - Unification du nom de base et des identifiants : base `agent_memory_notebooklm`, user `notebook`, mot de passe `notebook`.
+   - Déport de la publication pour éviter le conflit : `55432:5432` dans `infra/docker-compose.yml`.
+   - Réinitialisation du mot de passe de l'utilisateur dans le conteneur et vérification de l'auth TCP.
+2. Alignement d'environnement
+   - DSN homogène partout : `postgres://notebook:notebook@127.0.0.1:55432/agent_memory_notebooklm` dans les `.env`.
+   - Forcer le chargement du `.env` à écraser l'env hôte via `config({ override: true })` dans `src/env.ts`.
+3. Configuration Ollama
+   - Utilisation de `OLLAMA_BASE_URL=http://127.0.0.1:11434` (et non `localhost`).
+   - Normalisation des étiquettes installées : `nomic-embed-text:latest` et `phi3:mini`.
+4. Port de l'orchestrateur
+   - Passage à `PORT=8080` dans `orchestrator/.env` pour éviter le conflit sur 8000.
 
-## Files changed
-- `infra/docker-compose.yml`: publish Postgres on 55432; consistent env and healthcheck.
-- `infra/config/postgresql/postgresql.conf`: removed invalid setting; tuned basics.
-- `infra/config/postgresql/pg_hba.conf`: md5 for host connections (IPv4/IPv6).
-- `infra/postgres/init/01-init-db.sh`: creates pgvector extension, schema, and grants; ensures password.
-- `.env` and `orchestrator/.env`: unified `POSTGRES_DSN`, `OLLAMA_BASE_URL`, models, and `PORT=8080`.
-- `orchestrator/src/env.ts`: `dotenv` now loads with `{ override: true }`.
+## Fichiers modifiés
+- `infra/docker-compose.yml` : publication de Postgres sur 55432 ; env et healthcheck cohérents.
+- `infra/config/postgresql/postgresql.conf` : suppression du paramètre invalide ; réglages de base.
+- `infra/config/postgresql/pg_hba.conf` : md5 pour les connexions (IPv4/IPv6).
+- `infra/postgres/init/01-init-db.sh` : création de l'extension pgvector, schéma et droits ; garantie du mot de passe.
+- `.env` et `orchestrator/.env` : DSN, `OLLAMA_BASE_URL`, modèles et `PORT=8080` unifiés.
+- `orchestrator/src/env.ts` : `dotenv` charge désormais avec `{ override: true }`.
 
-## Verification
-1. Postgres health
-   - Container: Up (healthy). Port mapping `0.0.0.0:55432->5432/tcp`.
-   - TCP auth test:
-     - From host: `psql "postgres://notebook:notebook@127.0.0.1:55432/agent_memory_notebooklm" -c "select 1;"`
-2. Ollama models
-   - API: `GET http://127.0.0.1:11434/api/tags` shows `phi3:mini` and `nomic-embed-text:latest`.
-3. Orchestrator boot
-   - Logs show: `DB connection: OK`, `Ollama models: OK`, `GPU probe: OK`.
-   - Listening: `http://0.0.0.0:8080`.
-4. Smoke tests
-   - Health: `GET http://127.0.0.1:8080/health` → `{ status: 'ok' }`.
-   - Ready: `GET http://127.0.0.1:8080/ready` (models must be installed).
+## Vérifications
+1. Santé Postgres
+   - Conteneur : Up (healthy). Mappage `0.0.0.0:55432->5432/tcp`.
+   - Test d'auth TCP :
+     - Depuis l'hôte : `psql "postgres://notebook:notebook@127.0.0.1:55432/agent_memory_notebooklm" -c "select 1;"`
+2. Modèles Ollama
+   - API : `GET http://127.0.0.1:11434/api/tags` montre `phi3:mini` et `nomic-embed-text:latest`.
+3. Démarrage orchestrateur
+   - Logs : `DB connection: OK`, `Ollama models: OK`, `GPU probe: OK`.
+   - Écoute : `http://0.0.0.0:8080`.
+4. Tests fumigènes
+   - Health : `GET http://127.0.0.1:8080/health` → `{ status: 'ok' }`.
+   - Ready : `GET http://127.0.0.1:8080/ready` (modèles installés requis).
 
-## Operational notes
-- Prefer `127.0.0.1` over `localhost` for Ollama to avoid resolver inconsistencies.
-- If you need the standard ports (5432/8000), stop the conflicting Windows services/processes or change their ports:
-  - Windows Postgres service: `postgresql-x64-17`.
-  - Process on 8000: `Manager` (PID varies).
-- Keep DB name consistent across compose, init scripts, healthchecks, and DSNs.
-- If using Docker secrets for DB password, ensure the app uses the same value (or inject it from the secret at runtime).
+## Notes opérationnelles
+- Préférer `127.0.0.1` à `localhost` pour Ollama afin d'éviter des incohérences de résolution.
+- Si vous devez utiliser les ports standard (5432/8000), arrêter les services/processus Windows en conflit ou changer leurs ports :
+  - Service Postgres Windows : `postgresql-x64-17`.
+  - Processus sur 8000 : `Manager` (PID variable).
+- Garder le nom de base cohérent entre compose, scripts d'init, healthchecks et DSN.
+- En cas d'usage de secrets Docker pour le mot de passe DB, s'assurer que l'app consomme la même valeur (ou l'injecter au runtime).
 
-## Quick recovery checklist
+## Checklist de reprise rapide
 - Postgres
-  - [ ] `docker-compose ps` shows postgres healthy
-  - [ ] `psql` TCP auth works to the expected DB with the expected user
-  - [ ] Port mapping is not conflicting on the host
+  - [ ] `docker-compose ps` affiche postgres en healthy
+  - [ ] L'auth TCP `psql` fonctionne vers la base et l'utilisateur attendus
+  - [ ] Le mappage de port ne crée pas de conflit sur l'hôte
 - Env
-  - [ ] `orchestrator/.env` DSN points to 127.0.0.1:55432/agent_memory_notebooklm
-  - [ ] `src/env.ts` uses `config({ override: true })`
+  - [ ] Le DSN de `orchestrator/.env` pointe vers 127.0.0.1:55432/agent_memory_notebooklm
+  - [ ] `src/env.ts` utilise `config({ override: true })`
 - Ollama
-  - [ ] Base URL is 127.0.0.1:11434
-  - [ ] Models installed match env tags (e.g., `nomic-embed-text:latest`)
-- Orchestrator
-  - [ ] PORT not in use (we use 8080)
-  - [ ] `/health` and `/ready` return OK
+  - [ ] La base URL est 127.0.0.1:11434
+  - [ ] Les modèles installés correspondent aux étiquettes d'env (ex. `nomic-embed-text:latest`)
+- Orchestrateur
+  - [ ] Le PORT n'est pas occupé (nous utilisons 8080)
+  - [ ] `/health` et `/ready` renvoient OK
 
-## Commands (PowerShell)
+## Commandes (PowerShell)
 ```powershell
-# Postgres status
+# État de Postgres
 cd .\infra
 docker-compose ps
 
-# Test DB auth from host
+# Tester l'auth DB depuis l'hôte
 psql "postgres://notebook:notebook@127.0.0.1:55432/agent_memory_notebooklm" -c "select 1;"
 
-# List Ollama models
+# Lister les modèles Ollama
 Invoke-RestMethod -Uri http://127.0.0.1:11434/api/tags | ConvertTo-Json -Depth 4
 
-# Check ports in use
+# Vérifier les ports utilisés
 Get-NetTCPConnection -LocalPort 5432,8000 -State Listen | Format-Table -AutoSize
 
-# Start orchestrator
+# Démarrer l'orchestrateur
 cd ..\orchestrator
 npm run build
 node dist/index.js
 ```
 
 ---
-Prepared by: Team Orange — Impl
-Date: 2025-08-13
+Préparé par : Team Orange — Impl
+Date : 2025-08-13

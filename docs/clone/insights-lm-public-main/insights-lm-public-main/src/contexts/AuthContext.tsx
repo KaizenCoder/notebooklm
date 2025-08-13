@@ -31,6 +31,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const isMock = (import.meta as any)?.env?.VITE_USE_MOCKS === 'true';
 
   const updateAuthState = (newSession: Session | null) => {
     console.log('AuthContext: Updating auth state:', newSession?.user?.email || 'No session');
@@ -52,6 +53,11 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
   const signOut = async () => {
     try {
+      if (isMock) {
+        // Mock mode: clear locally without remote calls
+        clearAuthState();
+        return;
+      }
       console.log('AuthContext: Starting logout process...');
       
       // Clear local state immediately to provide instant feedback
@@ -92,7 +98,26 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   useEffect(() => {
     let mounted = true;
 
-    // Set up auth state listener FIRST
+    if (isMock) {
+      // Short-circuit auth in mock mode with a deterministic local user/session
+      const mockUser = {
+        id: '00000000-0000-0000-0000-0000000000aa',
+        email: 'mock@local.dev',
+      } as unknown as User;
+      const mockSession = {
+        user: mockUser,
+        access_token: 'mock',
+        token_type: 'bearer',
+        expires_in: 3600,
+        refresh_token: 'mock',
+        expires_at: Math.floor(Date.now() / 1000) + 3600,
+      } as unknown as Session;
+      updateAuthState(mockSession);
+      setLoading(false);
+      return () => { mounted = false; };
+    }
+
+    // Set up auth state listener FIRST (real mode)
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, newSession) => {
         if (!mounted) return;
@@ -164,7 +189,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       }
     };
 
-    // Initialize auth state after setting up listener
+    // Initialize auth state after setting up listener (real mode)
     initializeAuth();
 
     return () => {

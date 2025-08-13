@@ -2,6 +2,7 @@
 import { useMutation } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { ProcessDocumentResponseSchema } from '@/types/schemas';
 
 export const useDocumentProcessing = () => {
   const { toast } = useToast();
@@ -30,7 +31,13 @@ export const useDocumentProcessing = () => {
         console.error('Document processing error:', error);
         throw error;
       }
-
+      const parsed = ProcessDocumentResponseSchema.safeParse(data);
+      if (!parsed.success) {
+        console.error('Process-document response schema mismatch', parsed.error);
+        if (import.meta.env.DEV) {
+          throw new Error('Process-document response schema mismatch');
+        }
+      }
       return data;
     },
     onSuccess: (data) => {

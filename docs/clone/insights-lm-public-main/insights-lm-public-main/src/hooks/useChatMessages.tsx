@@ -5,6 +5,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { EnhancedChatMessage, Citation, MessageSegment } from '@/types/message';
 import { useToast } from '@/hooks/use-toast';
 import { useEffect } from 'react';
+import { ChatResponseSchema } from '@/types/schemas';
 
 // Type for the expected message structure from n8n_chat_histories
 interface N8nMessageFormat {
@@ -277,6 +278,14 @@ export const useChatMessages = (notebookId?: string) => {
         throw new Error(`Webhook error: ${webhookResponse.error.message}`);
       }
 
+      // Zod validation (fail-fast in dev)
+      const parsed = ChatResponseSchema.safeParse(webhookResponse.data);
+      if (!parsed.success) {
+        console.error('Chat response schema mismatch', parsed.error);
+        if (import.meta.env.DEV) {
+          throw new Error('Chat response schema mismatch');
+        }
+      }
       return webhookResponse.data;
     },
     onSuccess: () => {

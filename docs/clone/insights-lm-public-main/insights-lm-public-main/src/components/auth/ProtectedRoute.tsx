@@ -9,8 +9,9 @@ interface ProtectedRouteProps {
 
 const ProtectedRoute = ({ children, fallback }: ProtectedRouteProps) => {
   const { isAuthenticated, loading } = useAuth();
+  const isMock = (import.meta as any)?.env?.VITE_USE_MOCKS === 'true';
 
-  if (loading) {
+  if (!isMock && loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center">
@@ -19,6 +20,10 @@ const ProtectedRoute = ({ children, fallback }: ProtectedRouteProps) => {
         </div>
       </div>
     );
+  }
+
+  if (isMock) {
+    return <>{children}</>;
   }
 
   return isAuthenticated ? <>{children}</> : <>{fallback}</>;

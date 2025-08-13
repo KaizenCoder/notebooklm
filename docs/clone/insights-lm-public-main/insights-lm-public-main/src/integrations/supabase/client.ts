@@ -2,10 +2,20 @@
 import { createClient } from '@supabase/supabase-js';
 import type { Database } from './types';
 
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
-const SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
+const SUPABASE_URL = (import.meta as any).env?.VITE_SUPABASE_URL as string | undefined;
+const SUPABASE_PUBLISHABLE_KEY = (import.meta as any).env?.VITE_SUPABASE_ANON_KEY as string | undefined;
+const USE_MOCKS = (import.meta as any).env?.VITE_USE_MOCKS === 'true';
+
+// Provide sensible fallbacks in mock mode to avoid env friction in tests
+const EFFECTIVE_URL = SUPABASE_URL || (USE_MOCKS ? 'http://127.0.0.1:54321' : undefined);
+const EFFECTIVE_KEY = SUPABASE_PUBLISHABLE_KEY || (USE_MOCKS ? 'dummy' : undefined);
+
+if (!EFFECTIVE_URL || !EFFECTIVE_KEY) {
+  // In real mode, surface a clearer error early
+  throw new Error('[supabase] Missing VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY. Provide .env or enable VITE_USE_MOCKS=true.');
+}
 
 // Import the supabase client like this:
 // import { supabase } from "@/integrations/supabase/client";
 
-export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
+export const supabase = createClient<Database>(EFFECTIVE_URL, EFFECTIVE_KEY);

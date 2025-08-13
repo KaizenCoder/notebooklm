@@ -10,6 +10,9 @@ import Dashboard from "./pages/Dashboard";
 import Notebook from "./pages/Notebook";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
+import DevBanner from "@/components/ui/DevBanner";
+import Preflight from "./pages/Preflight";
+import SkipLink from "@/components/ui/SkipLink";
 
 const queryClient = new QueryClient();
 
@@ -40,6 +43,14 @@ const AppContent = () => {
           </ProtectedRoute>
         } 
       />
+      <Route 
+        path="/preflight" 
+        element={
+          <ProtectedRoute fallback={<Auth />}>
+            <Preflight />
+          </ProtectedRoute>
+        } 
+      />
       <Route path="/auth" element={<Auth />} />
       <Route path="*" element={<NotFound />} />
     </Routes>
@@ -50,6 +61,8 @@ const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
       <AuthProvider>
+        <SkipLink />
+        {import.meta.env.DEV && <DevBanner />}
         <Toaster />
         <Sonner />
         <BrowserRouter>

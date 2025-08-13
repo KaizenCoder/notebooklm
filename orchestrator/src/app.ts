@@ -10,6 +10,7 @@ import { createAudio } from './services/audio.js';
 import { createStorage } from './services/storage.js';
 import { createIdempotencyStore } from './services/idempotency.js';
 import { createWhisper } from './services/whisper.js';
+import { createPdf } from './services/pdf.js';
 import { request as undiciRequest } from 'undici';
 import { createComms } from './services/comms/index.js';
 
@@ -31,7 +32,8 @@ export function buildApp(deps?: Partial<AppDeps>): FastifyInstance {
   const ollama = deps?.ollama ?? createOllama(env);
   const supabase = (deps as any)?.supabase ?? createSupabase(env);
   const jobs = (deps as any)?.jobs ?? createJobs();
-  const docProc = (deps as any)?.docProc ?? createDocumentProcessor(env, { ollama, db });
+  const pdf = (deps as any)?.pdf ?? createPdf(env);
+  const docProc = (deps as any)?.docProc ?? createDocumentProcessor(env, { ollama, db, pdf });
   const audio = (deps as any)?.audio ?? createAudio(env);
   const storage = (deps as any)?.storage ?? createStorage(env);
   const whisper = (deps as any)?.whisper ?? createWhisper(env);

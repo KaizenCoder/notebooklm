@@ -37,7 +37,7 @@ async function main() {
   const args = parseArgs(process.argv);
 
   const url = process.env.REDIS_URL || args.redis || 'redis://127.0.0.1:6379';
-  const streamsEnv = (process.env.STREAMS || args.streams || 'agents:pair:team03,agents:global');
+  const streamsEnv = (process.env.STREAMS || args.streams || 'agents:pair:teamXX,agents:global');
   const streams = streamsEnv.split(',').map((s) => s.trim()).filter(Boolean);
 
   const agentId = process.env.AGENT_ID || args.agent || 'agent_generic';
@@ -62,6 +62,7 @@ async function main() {
 
   const lastSeenTtl = Number(process.env.LAST_SEEN_TTL || args.last_seen_ttl || '0');
   const lastSeenKey = `agent:lastseen:${agentId}`;
+  const maxlen = Number(process.env.MAXLEN || args.maxlen || '0');
 
   const mode = (args.mode || 'loop').toLowerCase();
 
@@ -70,6 +71,10 @@ async function main() {
   await client.connect();
 
   console.log(`[${nowIso()}] agent_heartbeat_start url=${url} streams=${streams.join(',')} agent=${agentId} team=${team} role=${role} mode=${mode}`);
+  if (team === 'teamXX' || agentId === 'agent_generic') {
+    // eslint-disable-next-line no-console
+    console.warn(`[warn] valeurs placeholder détectées (team=${team}, agent=${agentId}). Fournis --team/--agent pour le multi-équipe.`);
+  }
 
   async function publishOnce(event, status, details) {
     const base = {
@@ -89,8 +94,16 @@ async function main() {
     };
     for (const stream of streams) {
       try {
-        const id = await xadd(client, stream, base);
-        console.log(JSON.stringify({ ts: nowIso(), ok: true, stream, id, msg: base }));
+        if (maxlen > 0) {
+          const flat = Object.fromEntries(Object.entries(base).map(([k, v]) => [k, String(v)]));
+          const cmd = ['XADD', stream, 'MAXLEN', '~', String(maxlen), '*'];
+          for (const [k, v] of Object.entries(flat)) cmd.push(k, v);
+          const id = await client.sendCommand(cmd);
+          console.log(JSON.stringify({ ts: nowIso(), ok: true, stream, id, msg: base }));
+        } else {
+          const id = await xadd(client, stream, base);
+          console.log(JSON.stringify({ ts: nowIso(), ok: true, stream, id, msg: base }));
+        }
       } catch (e) {
         console.error(JSON.stringify({ ts: nowIso(), ok: false, stream, error: String(e?.message || e) }));
       }

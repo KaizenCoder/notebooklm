@@ -7,8 +7,8 @@ Objectif: valider la parité fonctionnelle V1 (ingestion/indexation, chat RAG av
 
 ## 0) Communication inter‑agents (OBLIGATOIRE)
 - [ ] Tous les agents publient leurs heartbeats via Redis Streams (`agents:pair:<team>` + `agents:global`)
-- [ ] Claims: `STATUS_UPDATE` publié sur `agents:pair:<team>` avec liens de preuve/PR avant tout fichier sous `claims/`
-- [ ] Audits: `AUDIT_REQUEST` (impl → audit) puis `AUDIT_VERDICT` (audit → impl) sur `agents:pair:<team>` avant tout fichier sous `audit/`
+- [ ] Claims: `STATUS_UPDATE` publié sur `agents:pair:<team>` avec liens de preuve/PR avant tout fichier sous `claims/` (contrôle process/CI, pas de blocage pre-commit)
+- [ ] Audits: `AUDIT_REQUEST` (impl → audit) puis `AUDIT_VERDICT` (audit → impl) sur `agents:pair:<team>` avant tout fichier sous `audit/` (contrôle process/CI, pas de blocage pre-commit)
 - [ ] Consommation fiable `XREADGROUP` + `XACK` avec groupes par rôle
 - [ ] `correlation_id` et `pair_id` présents dans tous les messages
 

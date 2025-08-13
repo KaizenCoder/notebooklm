@@ -51,6 +51,31 @@ Fichier: `orchestrator/scripts/agent-heartbeat.mjs`
 node scripts/agent-heartbeat.mjs --mode loop --redis redis://127.0.0.1:6379 --streams agents:pair:team03,agents:global --agent auditor_team03 --team team03 --role audit --to orchestrator --pair team03 --interval_ms 600000 --jitter_ms 30000
 ```
 
+### Observabilité minimale — Last Seen
+- Option: `--last_seen_ttl <sec>` pour écrire `SETEX agent:lastseen:<agent_id>` à chaque heartbeat.
+- Lecture d’état:
+```bash
+node scripts/agents-ready.mjs              # url par défaut
+node scripts/agents-ready.mjs --redis redis://127.0.0.1:6379
+```
+
+### Publication Claims/Audits — CLI fiable (Windows OK)
+Script: `orchestrator/scripts/claim-audit-publisher.cjs`
+- Flags robustes pour listes de liens:
+  - `--linksJson '["/claims/xxx.md"]'`
+  - `--linksFile links.json` (contient un tableau JSON)
+- Exemples:
+```powershell
+# Claim
+node scripts/claim-audit-publisher.cjs claim --team team03 --taskId TM-03 --details 'Claim publié' --linksJson '["/claims/20250813_x.md"]'
+
+# Audit request
+node scripts/claim-audit-publisher.cjs audit-request --team team03 --taskId TM-03 --details 'Ready for audit' --linksFile links.json
+
+# Audit verdict
+node scripts/claim-audit-publisher.cjs audit-verdict --team team03 --taskId TM-03 --event APPROVED --details 'OK' --links https://pr/123
+```
+
 ## Obligations d'utilisation
 - Tous les agents DOIVENT utiliser Redis Streams pour toute communication inter‑agent (heartbeats, claims, audits, status updates).
 - Toute publication de Claim (fichiers dans `claims/`) doit être précédée d'un `STATUS_UPDATE` sur `agents:pair:<team>` avec lien vers la PR ou preuve associée.

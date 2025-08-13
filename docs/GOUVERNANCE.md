@@ -54,9 +54,11 @@ Livrables et traçabilité
   - Boot: `topic=HEARTBEAT, event=AGENT_ONLINE, status=ONLINE` sur pair + global
   - Périodique: toutes les 600 s (± 30 s) `*_ALIVE`
   - Shutdown: `AGENT_OFFLINE`
-- Claims & Audits (gating):
+- Claims & Audits:
   - Claim: publication préalable d’un `STATUS_UPDATE` sur `agents:pair:<team>` avec lien(s) de preuve/PR avant toute création/modif dans `claims/`.
   - Audit: `AUDIT_REQUEST` (impl → audit) puis `AUDIT_VERDICT` (audit → impl) sur `agents:pair:<team>` avant toute création/modif dans `audit/`.
+- Clarification sur les hooks:
+  - Aucun blocage pre-commit/pre-push n’est imposé spécifiquement pour les publications de claims/audits. L’usage de Redis Streams est obligatoire au niveau processus et contrôlé via la CI et les revues (références de messages/IDs dans les PR), mais il n’empêche pas un commit local.
 - Conformité et preuves:
   - Les documents `.md` de claims/audits doivent contenir au moins une ligne `#TEST:` et une section `## Limitations`.
   - Les PR doivent référencer les IDs des messages Redis (ou logs équivalents) liés aux publications.

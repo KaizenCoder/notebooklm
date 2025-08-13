@@ -24,7 +24,12 @@ const EnvSchema = z.object({
     STREAM_ORCH_INBOX: z.string().default('agents:orchestrator'),
     STREAM_PAIR_PREFIX: z.string().default('agents:pair:'),
     COMMS_MODE: z.string().default('multi-stream'),
-    COMMS_COMPAT_LEGACY: z.string().optional()
+    COMMS_COMPAT_LEGACY: z.string().optional(),
+    // PDF Bridge configuration
+    PDF_BRIDGE_ENABLED: z.string().default('true'),
+    PDF_BRIDGE_TIMEOUT: z.string().default('30'),
+    PDF_BRIDGE_MAX_PAGES: z.string().default('1000'),
+    PDF_BRIDGE_PYTHON_PATH: z.string().optional()
 });
 export function loadEnv() {
     const parsed = EnvSchema.safeParse(process.env);

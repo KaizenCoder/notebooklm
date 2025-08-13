@@ -1,0 +1,126 @@
+{
+  "timestamp": 1755041688.9152215,
+  "environment": {
+    "python_version": "Python 3.12.10",
+    "python_executable": "C:\\Users\\Utilisateur\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+    "dependencies_status": "MISSING",
+    "pdf_bridge_dir": "C:\\Dev\\my_notebooklm\\orchestrator\\scripts\\pdf-bridge",
+    "fixtures_available": {
+      "simple.pdf": true,
+      "empty.pdf": true,
+      "corrupted.pdf": true,
+      "large.pdf": false
+    }
+  },
+  "test_phases": {
+    "installation": {
+      "status": "PASSED",
+      "stdout": "\ud83d\udd27 PDF Bridge Installation Validator\n\n\ud83d\udc0d Python version: 3.12.10\n\u2705 Python version adequate\n\n\u2705 PyMuPDF: installed\n\u2705 pdfminer.six: installed\n\u2705 python-dateutil: installed\n\n\u2705 Extractor modules: importable\n\u2705 Extractor classes: instantiable\n\u2705 CLI interface: working\n\n\ud83c\udf89 PDF Bridge installation is complete and ready!\n\n\u2705 All checks passed:\n   - Python 3.8+ \u2705\n   - Dependencies installed \u2705\n   - Extractors working \u2705\n   - CLI interface working \u2705\n\n\ud83d\ude80 You can now use the PDF Bridge:\n   python pdf_extractor.py --input /path/to/file.pdf --output json\n",
+      "stderr": "",
+      "return_code": 0
+    },
+    "contract": {
+      "status": "FAILED",
+      "stdout": "\ud83e\uddea D\u00e9marrage des tests contractuels PDF Bridge\n============================================================\n\ud83d\udccb V\u00e9rification des fixtures...\n\u274c simple.pdf - MANQUANT\n\n\ud83d\udcc4 R\u00e9sultats sauvegard\u00e9s: C:\\Dev\\my_notebooklm\\orchestrator\\test\\contract\\pdf-bridge\\contract_test_results.json\n",
+      "stderr": "",
+      "return_code": 1,
+      "detailed_results": {
+        "timestamp": 1755041689.5375762,
+        "passed": 0,
+        "failed": 0,
+        "results": []
+      }
+    },
+    "performance": {
+      "status": "PASSED",
+      "metrics": {
+        "processing_time_ms": 11,
+        "total_time_ms": 231.52923583984375,
+        "performance_threshold": 5000,
+        "performance_ok": true
+      }
+    },
+    "integration": {
+      "status": "PASSED",
+      "test_results": [
+        {
+          "test": "SUCCESS_CASE",
+          "passed": true,
+          "expected_success": true,
+          "actual_success": true,
+          "response": {
+            "success": true,
+            "text": "Simple PDF for contract testing\nSecond line of text\n",
+            "metadata": {
+              "pages": 1,
+              "title": null,
+              "author": null,
+              "creator": null,
+              "producer": null,
+              "subject": null,
+              "keywords": null,
+              "creation_date": null,
+              "modification_date": null,
+              "extraction_method": "pymupdf",
+              "file_size": 667,
+              "processing_time_ms": 3
+            },
+            "warnings": [],
+            "error": null
+          }
+        },
+        {
+          "test": "FILE_NOT_FOUND",
+          "passed": true,
+          "expected_success": false,
+          "actual_success": false,
+          "response": {
+            "success": false,
+            "text": "",
+            "metadata": null,
+            "warnings": [],
+            "error": {
+              "code": "FILE_NOT_FOUND",
+              "message": "PDF file not found: C:\\Dev\\my_notebooklm\\orchestrator\\test\\fixtures\\pdf\\nonexistent.pdf",
+              "details": {
+                "file_path": "C:\\Dev\\my_notebooklm\\orchestrator\\test\\fixtures\\pdf\\nonexistent.pdf",
+                "directory_exists": true,
+                "processing_time_ms": 0,
+                "extraction_method": "pymupdf"
+              }
+            }
+          }
+        },
+        {
+          "test": "CORRUPTED_FILE",
+          "passed": true,
+          "expected_success": false,
+          "actual_success": false,
+          "response": {
+            "success": false,
+            "text": "",
+            "metadata": null,
+            "warnings": [],
+            "error": {
+              "code": "EXTRACTION_FAILED",
+              "message": "PDFMiner extraction failed: No /Root object! - Is this really a PDF?",
+              "details": {
+                "file_path": "C:\\Dev\\my_notebooklm\\orchestrator\\test\\fixtures\\pdf\\corrupted.pdf",
+                "error_type": "PDFSyntaxError",
+                "processing_time_ms": 0,
+                "extraction_method": "pdfminer"
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  "overall_status": "FAILED",
+  "summary": {
+    "total_phases": 4,
+    "passed_phases": 3,
+    "failed_phases": 1,
+    "skipped_phases": 0
+  }
+}

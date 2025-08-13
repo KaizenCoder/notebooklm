@@ -1,0 +1,227 @@
+{
+  "timestamp": 1755042032.8979995,
+  "environment": {
+    "python_version": "Python 3.12.10",
+    "python_executable": "C:\\Users\\Utilisateur\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+    "dependencies_status": "MISSING",
+    "pdf_bridge_dir": "C:\\Dev\\my_notebooklm\\orchestrator\\scripts\\pdf-bridge",
+    "fixtures_available": {
+      "simple.pdf": true,
+      "empty.pdf": true,
+      "corrupted.pdf": true,
+      "large.pdf": false
+    }
+  },
+  "test_phases": {
+    "installation": {
+      "status": "PASSED",
+      "stdout": "\ud83d\udd27 PDF Bridge Installation Validator\n\n\ud83d\udc0d Python version: 3.12.10\n\u2705 Python version adequate\n\n\u2705 PyMuPDF: installed\n\u2705 pdfminer.six: installed\n\u2705 python-dateutil: installed\n\n\u2705 Extractor modules: importable\n\u2705 Extractor classes: instantiable\n\u2705 CLI interface: working\n\n\ud83c\udf89 PDF Bridge installation is complete and ready!\n\n\u2705 All checks passed:\n   - Python 3.8+ \u2705\n   - Dependencies installed \u2705\n   - Extractors working \u2705\n   - CLI interface working \u2705\n\n\ud83d\ude80 You can now use the PDF Bridge:\n   python pdf_extractor.py --input /path/to/file.pdf --output json\n",
+      "stderr": "",
+      "return_code": 0
+    },
+    "contract": {
+      "status": "PASSED",
+      "stdout": "\ud83e\uddea D\u00e9marrage des tests contractuels PDF Bridge\n============================================================\n\ud83d\udccb V\u00e9rification des fixtures...\n\u2705 simple.pdf\n\u2705 empty.pdf\n\u2705 corrupted.pdf\n\n\ud83c\udfaf Tests contractuels:\n----------------------------------------\n\u2705 SUCCESS_SIMPLE_EXTRACTION\n\u2705 SUCCESS_SIMPLE_EXTRACTION_CONTENT\n\u2705 SUCCESS_SIMPLE_EXTRACTION_METADATA\n\u2705 ERROR_FILE_NOT_FOUND_SUCCESS\n\u2705 ERROR_FILE_NOT_FOUND_CODE\n\u2705 ERROR_CORRUPTED_FILE_SUCCESS\n\u2705 ERROR_CORRUPTED_FILE_CODE\n\u2705 EMPTY_PDF_SUCCESS\n\u2705 EMPTY_PDF_NO_TEXT\n\u2705 INVALID_ARGS_NO_INPUT\n\u2705 INVALID_ARGS_OUTPUT_FORMAT\n\u2705 TIMEOUT_HANDLING\n\u2705 VERBOSE_MODE_SUCCESS\n\u2705 VERBOSE_MODE_METADATA\n\u2705 JSON_SCHEMA_SUCCESS_SUCCESS\n\u2705 JSON_SCHEMA_SUCCESS_TEXT\n\u2705 JSON_SCHEMA_SUCCESS_METADATA\n\u2705 JSON_SCHEMA_METADATA_PAGES\n\u2705 JSON_SCHEMA_METADATA_FILE_SIZE_BYTES\n\u2705 JSON_SCHEMA_METADATA_EXTRACTION_METHOD\n\n============================================================\n\ud83d\udcca R\u00e9sultats: 20 r\u00e9ussis, 0 \u00e9chou\u00e9s\n\ud83c\udf89 TOUS LES TESTS CONTRACTUELS R\u00c9USSIS!\n\n\ud83d\udcc4 R\u00e9sultats sauvegard\u00e9s: C:\\Dev\\my_notebooklm\\orchestrator\\test\\contract\\pdf-bridge\\contract_test_results.json\n",
+      "stderr": "",
+      "return_code": 0,
+      "detailed_results": {
+        "timestamp": 1755042035.5911858,
+        "passed": 20,
+        "failed": 0,
+        "results": [
+          {
+            "test": "SUCCESS_SIMPLE_EXTRACTION",
+            "status": "PASS",
+            "message": "Expected success=true, got: True"
+          },
+          {
+            "test": "SUCCESS_SIMPLE_EXTRACTION_CONTENT",
+            "status": "PASS",
+            "message": "Expected text content, got: Simple PDF for contract testing\nSecond line of text\n..."
+          },
+          {
+            "test": "SUCCESS_SIMPLE_EXTRACTION_METADATA",
+            "status": "PASS",
+            "message": "Expected 1 page, got: 1"
+          },
+          {
+            "test": "ERROR_FILE_NOT_FOUND_SUCCESS",
+            "status": "PASS",
+            "message": "Expected success=false, got: False"
+          },
+          {
+            "test": "ERROR_FILE_NOT_FOUND_CODE",
+            "status": "PASS",
+            "message": "Expected FILE_NOT_FOUND, got: FILE_NOT_FOUND"
+          },
+          {
+            "test": "ERROR_CORRUPTED_FILE_SUCCESS",
+            "status": "PASS",
+            "message": "Expected success=false, got: False"
+          },
+          {
+            "test": "ERROR_CORRUPTED_FILE_CODE",
+            "status": "PASS",
+            "message": "Expected one of ['CORRUPTED_FILE', 'EXTRACTION_FAILED'], got: EXTRACTION_FAILED"
+          },
+          {
+            "test": "EMPTY_PDF_SUCCESS",
+            "status": "PASS",
+            "message": "Expected success=true for empty PDF, got: True"
+          },
+          {
+            "test": "EMPTY_PDF_NO_TEXT",
+            "status": "PASS",
+            "message": "Expected empty text, got: ''"
+          },
+          {
+            "test": "INVALID_ARGS_NO_INPUT",
+            "status": "PASS",
+            "message": "Expected failure without --input, got success: False"
+          },
+          {
+            "test": "INVALID_ARGS_OUTPUT_FORMAT",
+            "status": "PASS",
+            "message": "Expected failure with invalid output format, got success: False"
+          },
+          {
+            "test": "TIMEOUT_HANDLING",
+            "status": "PASS",
+            "message": "Expected success or TIMEOUT_EXCEEDED, got: SUCCESS"
+          },
+          {
+            "test": "VERBOSE_MODE_SUCCESS",
+            "status": "PASS",
+            "message": "Verbose mode should work, got success: True"
+          },
+          {
+            "test": "VERBOSE_MODE_METADATA",
+            "status": "PASS",
+            "message": "Expected processing_time_ms in metadata, got keys: ['pages', 'title', 'author', 'creator', 'producer', 'subject', 'keywords', 'creation_date', 'modification_date', 'extraction_method', 'file_size_bytes', 'processing_time_ms']"
+          },
+          {
+            "test": "JSON_SCHEMA_SUCCESS_SUCCESS",
+            "status": "PASS",
+            "message": "Missing required field: success"
+          },
+          {
+            "test": "JSON_SCHEMA_SUCCESS_TEXT",
+            "status": "PASS",
+            "message": "Missing required field: text"
+          },
+          {
+            "test": "JSON_SCHEMA_SUCCESS_METADATA",
+            "status": "PASS",
+            "message": "Missing required field: metadata"
+          },
+          {
+            "test": "JSON_SCHEMA_METADATA_PAGES",
+            "status": "PASS",
+            "message": "Missing metadata field: pages"
+          },
+          {
+            "test": "JSON_SCHEMA_METADATA_FILE_SIZE_BYTES",
+            "status": "PASS",
+            "message": "Missing metadata field: file_size_bytes"
+          },
+          {
+            "test": "JSON_SCHEMA_METADATA_EXTRACTION_METHOD",
+            "status": "PASS",
+            "message": "Missing metadata field: extraction_method"
+          }
+        ]
+      }
+    },
+    "performance": {
+      "status": "PASSED",
+      "metrics": {
+        "processing_time_ms": 4,
+        "total_time_ms": 227.77748107910156,
+        "performance_threshold": 5000,
+        "performance_ok": true
+      }
+    },
+    "integration": {
+      "status": "PASSED",
+      "test_results": [
+        {
+          "test": "SUCCESS_CASE",
+          "passed": true,
+          "expected_success": true,
+          "actual_success": true,
+          "response": {
+            "success": true,
+            "text": "Simple PDF for contract testing\nSecond line of text\n",
+            "metadata": {
+              "pages": 1,
+              "title": null,
+              "author": null,
+              "creator": null,
+              "producer": null,
+              "subject": null,
+              "keywords": null,
+              "creation_date": null,
+              "modification_date": null,
+              "extraction_method": "pymupdf",
+              "file_size_bytes": 667,
+              "processing_time_ms": 4
+            },
+            "warnings": [],
+            "error": null
+          }
+        },
+        {
+          "test": "FILE_NOT_FOUND",
+          "passed": true,
+          "expected_success": false,
+          "actual_success": false,
+          "response": {
+            "success": false,
+            "text": "",
+            "metadata": null,
+            "warnings": [],
+            "error": {
+              "code": "FILE_NOT_FOUND",
+              "message": "PDF file not found: C:\\Dev\\my_notebooklm\\orchestrator\\test\\fixtures\\pdf\\nonexistent.pdf",
+              "details": {
+                "file_path": "C:\\Dev\\my_notebooklm\\orchestrator\\test\\fixtures\\pdf\\nonexistent.pdf",
+                "directory_exists": true,
+                "processing_time_ms": 0,
+                "extraction_method": "pymupdf"
+              }
+            }
+          }
+        },
+        {
+          "test": "CORRUPTED_FILE",
+          "passed": true,
+          "expected_success": false,
+          "actual_success": false,
+          "response": {
+            "success": false,
+            "text": "",
+            "metadata": null,
+            "warnings": [],
+            "error": {
+              "code": "EXTRACTION_FAILED",
+              "message": "PDFMiner extraction failed: No /Root object! - Is this really a PDF?",
+              "details": {
+                "file_path": "C:\\Dev\\my_notebooklm\\orchestrator\\test\\fixtures\\pdf\\corrupted.pdf",
+                "error_type": "PDFSyntaxError",
+                "processing_time_ms": 0,
+                "extraction_method": "pdfminer"
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  "overall_status": "PASSED",
+  "summary": {
+    "total_phases": 4,
+    "passed_phases": 4,
+    "failed_phases": 0,
+    "skipped_phases": 0
+  }
+}

@@ -16,7 +16,13 @@ Cette politique rend OBLIGATOIRE l’usage de Redis Streams `agents:*` pour tout
 - Heartbeats: chaque agent publie `AGENT_ONLINE` au boot, puis `*_ALIVE` toutes les 600 s (± 30 s), sur pair + global.
 - Consommation: utiliser `XREADGROUP` + `XACK`; groupes recommandés: `impl_<team>`, `audit_<team>`, `supervision`.
 
-## Exemples (redis-cli)
+## Clarification sur les hooks Git
+- Cette politique n’impose pas de blocage pre-commit/pre-push lié aux claims/audits.
+- Le respect de l’obligation de publication Redis est vérifié par:
+  - la CI (validation de schéma et présence d’IDs de messages dans les PR),
+  - la revue (vérification des liens/artefacts et références de messages).
+
+## Exemples (CLI)
 ```bash
 # Claim: publication STATUS_UPDATE préalable
 redis-cli XADD agents:pair:team03 "*" \
@@ -38,6 +44,11 @@ redis-cli XADD agents:pair:team03 "*" \
   topic "AUDIT_VERDICT" event "APPROVED" status "OK" \
   timestamp "$(date -Is)" correlation_id "$(uuidgen)" pair_id "team03" \
   links "[\"/audit/20250812_tm-...md\"]" details "Conforme, go merge"
+
+# Publisher Node (Windows-safe quoting)
+node scripts/claim-audit-publisher.cjs claim --team team03 --taskId TM-03 --details "Claim publié" --linksJson '["/claims/20250813_x.md]'
+node scripts/claim-audit-publisher.cjs audit-request --team team03 --taskId TM-03 --details "Ready" --linksFile links.json
+node scripts/claim-audit-publisher.cjs audit-verdict --team team03 --taskId TM-03 --event APPROVED --details "OK" --links https://pr/123
 ```
 
 ## Rappels conformité documentation

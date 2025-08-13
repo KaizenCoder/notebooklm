@@ -7,6 +7,48 @@ const { randomUUID } = require('crypto');
 const fs = require('fs');
 const path = require('path');
 
+function tryParseJson(input, fallback = null) {
+  if (input == null) return fallback;
+  if (typeof input !== 'string') return input;
+  const s = input.trim();
+  if (!(s.startsWith('[') || s.startsWith('{'))) return fallback;
+  try { return JSON.parse(s); } catch { return fallback; }
+}
+
+function normalizeLinksOption(options) {
+  // Priority: linksJson > linksFile > links
+  if (options.linksJson) {
+    const parsed = tryParseJson(options.linksJson, null);
+    if (Array.isArray(parsed)) {
+      options.links = parsed;
+      delete options.linksJson;
+      return;
+    }
+  }
+  if (options.linksFile) {
+    try {
+      const raw = fs.readFileSync(options.linksFile, 'utf8');
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        options.links = parsed;
+        delete options.linksFile;
+        return;
+      }
+    } catch {}
+  }
+  if (options.links && typeof options.links === 'string') {
+    const parsed = tryParseJson(options.links, null);
+    if (Array.isArray(parsed)) {
+      options.links = parsed;
+    } else if (options.links.includes(',')) {
+      options.links = options.links.split(',').map((s) => s.trim()).filter(Boolean);
+    } else {
+      options.links = [options.links];
+    }
+  }
+  if (!options.links) options.links = [];
+}
+
 class ClaimAuditPublisher {
   constructor(redisUrl = null) {
     this.client = null;
@@ -38,19 +80,25 @@ class ClaimAuditPublisher {
    * Conforme à CLAIMS_AUDITS_REDIS_POLICY.md
    */
   async publishClaimStatusUpdate(options = {}) {
+    normalizeLinksOption(options);
     const {
-      team = 'team03',
-      fromAgent = 'impl_team03',
-      toAgent = 'auditor_team03',
+      team,
+      fromAgent,
+      toAgent,
       event = 'CLAIM_PUBLISHED',
       status = 'INFO',
       taskId = '',
       links = [],
       details = '',
-      correlationId = null
+      correlationId = null,
+      maxlen
     } = options;
 
     await this.connect();
+
+    if (!team || !fromAgent || !toAgent) {
+      throw new Error('Missing required options: --team, --fromAgent, --toAgent');
+    }
 
     const now = new Date().toISOString();
     const correlation = correlationId || randomUUID();
@@ -77,7 +125,10 @@ class ClaimAuditPublisher {
 
     for (const stream of streams) {
       try {
-        const id = await this.client.sendCommand(['XADD', stream, '*', ...fields]);
+        const cmd = ['XADD', stream];
+        if (maxlen && Number(maxlen) > 0) cmd.push('MAXLEN', '~', String(Number(maxlen)));
+        cmd.push('*', ...fields);
+        const id = await this.client.sendCommand(cmd);
         console.log(`[CLAIM] STATUS_UPDATE sent to ${stream}: ${id}`);
         results.push({ stream, id, success: true });
       } catch (error) {
@@ -93,19 +144,25 @@ class ClaimAuditPublisher {
    * Publier un AUDIT_REQUEST (impl → audit)
    */
   async publishAuditRequest(options = {}) {
+    normalizeLinksOption(options);
     const {
-      team = 'team03',
-      fromAgent = 'impl_team03',
-      toAgent = 'auditor_team03',
+      team,
+      fromAgent,
+      toAgent,
       event = 'READY_FOR_AUDIT',
       status = 'READY',
       taskId = '',
       links = [],
       details = '',
-      correlationId = null
+      correlationId = null,
+      maxlen
     } = options;
 
     await this.connect();
+
+    if (!team || !fromAgent || !toAgent) {
+      throw new Error('Missing required options: --team, --fromAgent, --toAgent');
+    }
 
     const now = new Date().toISOString();
     const correlation = correlationId || randomUUID();
@@ -132,7 +189,10 @@ class ClaimAuditPublisher {
 
     for (const stream of streams) {
       try {
-        const id = await this.client.sendCommand(['XADD', stream, '*', ...fields]);
+        const cmd = ['XADD', stream];
+        if (maxlen && Number(maxlen) > 0) cmd.push('MAXLEN', '~', String(Number(maxlen)));
+        cmd.push('*', ...fields);
+        const id = await this.client.sendCommand(cmd);
         console.log(`[AUDIT] AUDIT_REQUEST sent to ${stream}: ${id}`);
         results.push({ stream, id, success: true });
       } catch (error) {
@@ -148,19 +208,25 @@ class ClaimAuditPublisher {
    * Publier un AUDIT_VERDICT (audit → impl)
    */
   async publishAuditVerdict(options = {}) {
+    normalizeLinksOption(options);
     const {
-      team = 'team03',
-      fromAgent = 'auditor_team03',
-      toAgent = 'impl_team03',
+      team,
+      fromAgent,
+      toAgent,
       event = 'APPROVED', // ou 'REJECTED'
       status = 'OK',      // ou 'BLOCKED'
       taskId = '',
       links = [],
       details = '',
-      correlationId = null
+      correlationId = null,
+      maxlen
     } = options;
 
     await this.connect();
+
+    if (!team || !fromAgent || !toAgent) {
+      throw new Error('Missing required options: --team, --fromAgent, --toAgent');
+    }
 
     const now = new Date().toISOString();
     const correlation = correlationId || randomUUID();
@@ -187,7 +253,10 @@ class ClaimAuditPublisher {
 
     for (const stream of streams) {
       try {
-        const id = await this.client.sendCommand(['XADD', stream, '*', ...fields]);
+        const cmd = ['XADD', stream];
+        if (maxlen && Number(maxlen) > 0) cmd.push('MAXLEN', '~', String(Number(maxlen)));
+        cmd.push('*', ...fields);
+        const id = await this.client.sendCommand(cmd);
         console.log(`[AUDIT] AUDIT_VERDICT sent to ${stream}: ${id}`);
         results.push({ stream, id, success: true });
       } catch (error) {
@@ -243,13 +312,13 @@ if (require.main === module) {
   const command = process.argv[2];
   const options = {};
   
-  // Parse des arguments CLI
-  for (let i = 3; i < process.argv.length; i += 2) {
-    const key = process.argv[i]?.replace('--', '');
-    const value = process.argv[i + 1];
-    if (key && value) {
-      options[key] = value;
-    }
+  // Parse des arguments CLI (paires --key value)
+  for (let i = 3; i < process.argv.length; i++) {
+    const token = process.argv[i];
+    if (!token?.startsWith('--')) continue;
+    const key = token.replace(/^--/, '');
+    const value = (i + 1 < process.argv.length && !process.argv[i + 1].startsWith('--')) ? process.argv[++i] : 'true';
+    options[key] = value;
   }
   
   async function main() {
@@ -268,9 +337,9 @@ if (require.main === module) {
           break;
         default:
           console.log('Usage:');
-          console.log('  node claim-audit-publisher.cjs claim --taskId TM-03 --details "Claim published"');
-          console.log('  node claim-audit-publisher.cjs audit-request --taskId TM-03 --details "Ready for audit"');
-          console.log('  node claim-audit-publisher.cjs audit-verdict --taskId TM-03 --event APPROVED --details "Conformity OK"');
+          console.log('  node claim-audit-publisher.cjs claim --team <team> --fromAgent <impl_id> --toAgent <audit_id> --taskId TM-03 --details "Claim published" --linksJson "[\"/claims/x.md\"]" --maxlen 10000');
+          console.log('  node claim-audit-publisher.cjs audit-request --team <team> --fromAgent <impl_id> --toAgent <audit_id> --taskId TM-03 --details "Ready for audit" --linksFile links.json --maxlen 10000');
+          console.log('  node claim-audit-publisher.cjs audit-verdict --team <team> --fromAgent <audit_id> --toAgent <impl_id> --taskId TM-03 --event APPROVED --details "Conformity OK" --links https://pr/123 --maxlen 10000');
           process.exit(1);
       }
       

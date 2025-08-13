@@ -1,0 +1,5 @@
+%PDF-1.CORRUPTED
+This is not a valid PDF file
+It should trigger CORRUPTED_FILE error
+Random bytes and invalid structure
+%%EOF-BROKEN

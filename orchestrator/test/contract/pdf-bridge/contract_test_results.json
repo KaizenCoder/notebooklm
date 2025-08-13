@@ -1,0 +1,107 @@
+{
+  "timestamp": 1755042035.5911858,
+  "passed": 20,
+  "failed": 0,
+  "results": [
+    {
+      "test": "SUCCESS_SIMPLE_EXTRACTION",
+      "status": "PASS",
+      "message": "Expected success=true, got: True"
+    },
+    {
+      "test": "SUCCESS_SIMPLE_EXTRACTION_CONTENT",
+      "status": "PASS",
+      "message": "Expected text content, got: Simple PDF for contract testing\nSecond line of text\n..."
+    },
+    {
+      "test": "SUCCESS_SIMPLE_EXTRACTION_METADATA",
+      "status": "PASS",
+      "message": "Expected 1 page, got: 1"
+    },
+    {
+      "test": "ERROR_FILE_NOT_FOUND_SUCCESS",
+      "status": "PASS",
+      "message": "Expected success=false, got: False"
+    },
+    {
+      "test": "ERROR_FILE_NOT_FOUND_CODE",
+      "status": "PASS",
+      "message": "Expected FILE_NOT_FOUND, got: FILE_NOT_FOUND"
+    },
+    {
+      "test": "ERROR_CORRUPTED_FILE_SUCCESS",
+      "status": "PASS",
+      "message": "Expected success=false, got: False"
+    },
+    {
+      "test": "ERROR_CORRUPTED_FILE_CODE",
+      "status": "PASS",
+      "message": "Expected one of ['CORRUPTED_FILE', 'EXTRACTION_FAILED'], got: EXTRACTION_FAILED"
+    },
+    {
+      "test": "EMPTY_PDF_SUCCESS",
+      "status": "PASS",
+      "message": "Expected success=true for empty PDF, got: True"
+    },
+    {
+      "test": "EMPTY_PDF_NO_TEXT",
+      "status": "PASS",
+      "message": "Expected empty text, got: ''"
+    },
+    {
+      "test": "INVALID_ARGS_NO_INPUT",
+      "status": "PASS",
+      "message": "Expected failure without --input, got success: False"
+    },
+    {
+      "test": "INVALID_ARGS_OUTPUT_FORMAT",
+      "status": "PASS",
+      "message": "Expected failure with invalid output format, got success: False"
+    },
+    {
+      "test": "TIMEOUT_HANDLING",
+      "status": "PASS",
+      "message": "Expected success or TIMEOUT_EXCEEDED, got: SUCCESS"
+    },
+    {
+      "test": "VERBOSE_MODE_SUCCESS",
+      "status": "PASS",
+      "message": "Verbose mode should work, got success: True"
+    },
+    {
+      "test": "VERBOSE_MODE_METADATA",
+      "status": "PASS",
+      "message": "Expected processing_time_ms in metadata, got keys: ['pages', 'title', 'author', 'creator', 'producer', 'subject', 'keywords', 'creation_date', 'modification_date', 'extraction_method', 'file_size_bytes', 'processing_time_ms']"
+    },
+    {
+      "test": "JSON_SCHEMA_SUCCESS_SUCCESS",
+      "status": "PASS",
+      "message": "Missing required field: success"
+    },
+    {
+      "test": "JSON_SCHEMA_SUCCESS_TEXT",
+      "status": "PASS",
+      "message": "Missing required field: text"
+    },
+    {
+      "test": "JSON_SCHEMA_SUCCESS_METADATA",
+      "status": "PASS",
+      "message": "Missing required field: metadata"
+    },
+    {
+      "test": "JSON_SCHEMA_METADATA_PAGES",
+      "status": "PASS",
+      "message": "Missing metadata field: pages"
+    },
+    {
+      "test": "JSON_SCHEMA_METADATA_FILE_SIZE_BYTES",
+      "status": "PASS",
+      "message": "Missing metadata field: file_size_bytes"
+    },
+    {
+      "test": "JSON_SCHEMA_METADATA_EXTRACTION_METHOD",
+      "status": "PASS",
+      "message": "Missing metadata field: extraction_method"
+    }
+  ]
+}

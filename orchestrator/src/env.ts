@@ -1,4 +1,8 @@
 import { z, ZodIssue } from 'zod';
+import { config } from 'dotenv';
+
+// Load .env file (override to avoid host env clashes)
+config({ override: true });
 
 const EnvSchema = z.object({
   PORT: z.string().default('8000'),

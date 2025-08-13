@@ -1,22 +1,37 @@
 version: '3.9'
+
+secrets:
+  postgres_password:
+    file: ./secrets/postgres_password.txt
+
 services:
   postgres:
     image: ankane/pgvector:latest
     container_name: notebooklm_postgres
     environment:
+      POSTGRES_DB: agent_memory_notebooklm
       POSTGRES_USER: notebook
-      POSTGRES_PASSWORD: notebook
-      POSTGRES_DB: notebook
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+      PGDATA: /var/lib/postgresql/data/pgdata
+    secrets:
+      - postgres_password
     ports:
-      - "5432:5432"
+      - "55432:5432"
     volumes:
-      - ./postgres/data:/var/lib/postgresql/data
+      - postgres_data:/var/lib/postgresql/data/pgdata
+      - ./config/postgresql/postgresql.conf:/etc/postgresql/postgresql.conf
+      - ./config/postgresql/pg_hba.conf:/etc/postgresql/pg_hba.conf
       - ./postgres/init:/docker-entrypoint-initdb.d
+    command: >
+      postgres
+      -c config_file=/etc/postgresql/postgresql.conf
+      -c hba_file=/etc/postgresql/pg_hba.conf
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U notebook"]
-      interval: 5s
+      test: ["CMD-SHELL", "pg_isready -U notebook -d agent_memory_notebooklm"]
+      interval: 10s
       timeout: 5s
-      retries: 10
+      retries: 5
+      start_period: 30s
 
   ollama:
     image: ollama/ollama:latest
@@ -34,4 +49,5 @@ services:
       retries: 20
 
 volumes:
+  postgres_data:
   ollama:

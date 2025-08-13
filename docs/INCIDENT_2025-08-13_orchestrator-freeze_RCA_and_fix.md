@@ -1,7 +1,8 @@
-# Gel de l'orchestrateur (DB/Ollama) — RCA et correctif (2025-08-13)
+# LLM inopérant et gel de l'orchestrateur (DB/Ollama) — RCA et correctif (2025-08-13)
 
 ## Résumé
-- Symptômes : l'orchestrateur échoue aux vérifications de démarrage (erreurs d'auth DB), puis modèles Ollama signalés manquants ; plus tard, impossible d'écouter sur le port 8000.
+- Problème initial : le LLM ne fonctionnait pas dans le projet — l'orchestrateur ne détectait aucun modèle Ollama et ne générait pas de réponses.
+- Symptômes connexes : l'orchestrateur échoue aux vérifications de démarrage (erreurs d'auth DB), puis modèles Ollama signalés manquants ; plus tard, impossible d'écouter sur le port 8000.
 - Causes racines :
   - Erreur de configuration PostgreSQL (`host_auth_method` invalide) et divergences de nom de base/mot de passe.
   - Conflits de ports hôte : service PostgreSQL Windows lié à 5432 ; une autre appli liée à 8000.
@@ -9,6 +10,7 @@
 - Résultat : tous les services sont alignés ; l'orchestrateur démarre et écoute sur 8080 ; vérifications DB/Ollama OK.
 
 ## Symptômes
+- LLM inopérant : aucune réponse générée par l'orchestrateur ; appels à l'API Ollama via `localhost` renvoyant une liste vide de modèles ; interface/service marquant les modèles comme manquants.
 - DB : `FATAL: password authentication failed for user "notebook"` et `database "notebooklm" does not exist`.
 - Postgres ne démarre pas avec : `unrecognized configuration parameter "host_auth_method"`.
 - Orchestrateur : « Ollama models: MISSING » alors que les modèles sont présents.

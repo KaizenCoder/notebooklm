@@ -41,10 +41,16 @@ Use this checklist after mapping Supabase secrets to the Orchestrator.
 
 **Redis Communication**
 - Heartbeats: `AGENT_ONLINE` on boot, `*_ALIVE` every ~600s ±30s, `AGENT_OFFLINE` on shutdown.
-- Status updates: publish `STATUS_UPDATE` before any claim; audit: `AUDIT_REQUEST`/`AUDIT_VERDICT`.
-- Streams used: `agents:global`, `agents:orchestrator`, `agents:pair:<team>`.
+- Claims: publier `STATUS_UPDATE` sur `agents:pair:<team>` avant tout commit dans `claims/` (inclure lien PR/évidence).
+- Audits: `AUDIT_REQUEST` (impl→audit) puis `AUDIT_VERDICT` (audit→impl) avant tout commit dans `audit/`.
+- Streams: `agents:global`, `agents:orchestrator`, `agents:pair:<team>` (ex: `agents:pair:team03`).
 
 **Acceptance (Parity)**
 - Payloads, statuses, DB side-effects match original reference.
 - Evidence collected (logs snippets, DB snapshots, FE screenshots where relevant).
+
+**Référence Continue (Obligatoire)**
+- Citer les fichiers correspondants sous `docs/clone/...` pour chaque scénario testé
+- Joindre les liens/chemins dans la PR (section "Source originale")
+- Lier toute adaptation à `docs/DECISIONS.md`
 

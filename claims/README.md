@@ -19,4 +19,12 @@ Rappels:
 - `correlation_id` et `pair_id` obligatoires dans le message.
 - `coordination_heartbeat` déprécié: utiliser `agents:*`.
 
+Référence continue (obligatoire):
+- Citer les fichiers d’origine sous `docs/clone/...` (chemins + lignes si utile) dans le corps du claim
+- Ajouter un bloc "Source originale" dans la PR correspondante
+- Lier toute adaptation à `docs/DECISIONS.md` (rationale + impact)
+
+Gate auditeur:
+- Le passage en done de la tâche associée est conditionné par la validation explicite de l’auditeur (verdict dans la PR). 
+
 Voir: `docs/communication/CLAIMS_AUDITS_REDIS_POLICY.md`.

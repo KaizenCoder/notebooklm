@@ -96,7 +96,7 @@ async function extractPdfViaBridge(
   maxPages?: number
 ): Promise<PdfExtractionResult> {
   
-  const bridgePath = path.join(__dirname, '../scripts/pdf-bridge/pdf_extractor.py');
+  const bridgePath = path.join(__dirname, '../../scripts/pdf-bridge/pdf_extractor.py');
   const pythonCommand = process.env.PDF_BRIDGE_PYTHON_PATH || 'python';
   
   const args = [
@@ -235,9 +235,18 @@ export function createPdf(env: Env) {
       const timeout = options?.timeout || defaultTimeout;
       const maxPages = options?.maxPages || defaultMaxPages;
 
-      // For now, assume urlOrPath is a file path
-      // TODO: Add URL download support if needed
-      return extractPdfViaBridge(urlOrPath, timeout, maxPages);
+      // Convert file:// URLs to file paths if needed
+      let filePath = urlOrPath;
+      if (urlOrPath.startsWith('file://')) {
+        // Remove file:// prefix and handle Windows paths
+        filePath = urlOrPath.substring(7);
+        // Handle forward slashes in Windows paths
+        if (process.platform === 'win32') {
+          filePath = filePath.replace(/\//g, '\\');
+        }
+      }
+
+      return extractPdfViaBridge(filePath, timeout, maxPages);
     },
 
     async validatePdf(filePath: string): Promise<boolean> {
@@ -261,3 +270,6 @@ export function createPdf(env: Env) {
 }
 
 export type PdfClient = ReturnType<typeof createPdf>;
+
+// Export de la fonction bridge pour les tests
+export { extractPdfViaBridge };

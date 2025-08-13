@@ -22,6 +22,7 @@ export type AppDeps = {
   jobs: ReturnType<typeof createJobs>;
   docProc: ReturnType<typeof createDocumentProcessor>;
   whisper: ReturnType<typeof createWhisper>;
+  pdf: ReturnType<typeof createPdf>;
 };
 
 export function buildApp(deps?: Partial<AppDeps>): FastifyInstance {

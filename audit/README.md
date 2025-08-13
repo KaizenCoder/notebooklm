@@ -27,4 +27,12 @@ Rappels:
 - `correlation_id` et `pair_id` obligatoires dans le message.
 - `coordination_heartbeat` déprécié: utiliser `agents:*`.
 
+Référence continue (obligatoire):
+- Citer les fichiers d’origine sous `docs/clone/...` (chemins + lignes si utile) dans le corps de l’audit
+- Ajouter un bloc "Source originale" dans la PR (ou lien vers claim) 
+- Lier toute adaptation à `docs/DECISIONS.md` (rationale + impact)
+
+Travail en binôme & gates:
+- L’audit se déroule en couple implémenteur/auditeur; la progression des tâches est bloquée tant que l’auditeur n’a pas rendu de verdict (`AUDIT_VERDICT`).
+
 Voir: `docs/communication/CLAIMS_AUDITS_REDIS_POLICY.md`.

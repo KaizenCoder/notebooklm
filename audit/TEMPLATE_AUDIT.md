@@ -15,6 +15,10 @@ related_files: []
 
 #TEST: orchestrator/test/integration/*.test.ts
 
+> Référence continue (obligatoire)
+- Source originale (docs/clone/...): <chemins précis>
+- Adaptations validées (si besoin): lien `docs/DECISIONS.md`
+
 ## Résumé (TL;DR)
 
 - Objet de l’audit:

@@ -103,6 +103,11 @@ Objectif: valider la parité fonctionnelle V1 (ingestion/indexation, chat RAG av
 - [ ] GPU utilisé et aucun fallback CPU en inference/embeddings
 - [ ] Fonctionnement offline après installation initiale
 
+## 15) Référence Continue au Modèle (Obligatoire)
+- [ ] Chaque test/scénario cite les fichiers correspondants sous `docs/clone/...` (chemins et, si pertinent, lignes)
+- [ ] La PR inclut un bloc "Source originale" et des preuves `#TEST:` corrélées
+- [ ] Toute adaptation est liée à `docs/DECISIONS.md`
+
 Notes:
 - Conserver les mesures (durées, latences) et captures d’écran (GPU, logs) en annexe du rapport.
 - Les exports (Markdown/JSON) restent hors périmètre si non présents dans l’original.

@@ -34,11 +34,11 @@
 **Parity Review & Evidence**
 - Use `PARITY_REVIEW_CHECKLIST.md` items covering endpoints, payloads, statuses, DB side-effects.
 - Collect: logs snippets (correlation_id), DB snapshots, FE screenshots.
-- Exit: auditor verdict APPROVED; claim published with STATUS_UPDATE.
+- Exit: auditor verdict APPROVED; claim published with STATUS_UPDATE on Redis (agents:pair:<team>) before pushing claim file.
 
 **Readiness Gates**
 - `/ready` returns 200; GPU-only enforced when enabled; models present.
-- Redis heartbeats compliant; status/audit events published as required.
+- Redis heartbeats compliant; status/audit events published as required (STATUS_UPDATE before claims, AUDIT_REQUEST/VERDICT around audits).
 
 **Timing (Estimate)**
 - PDF Bridge: 1.5–2.5 days

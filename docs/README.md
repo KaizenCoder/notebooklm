@@ -34,6 +34,11 @@ Tous les échanges inter‑agents (orchestrateur, implémenteur, auditeur, etc.)
 - Documentation du système original à cloner
 - Références et patterns d'implémentation
 
+### 🖥️ Frontend (`/frontend/`)
+- `FRONTEND_PRD.md` — PRD frontend (parité stricte + addendum d’alignement local)
+- `frontend/FRONTEND_PREPARATION_SUMMARY.md` — Synthèse des travaux de préparation FE (fichiers créés/mis à jour, intégrations, gouvernance)
+- `frontend/pre_requis_FE_BE_CODEX.MD` — Pré‑requis FE↔BE (valeurs locales, modèles, bus Redis, secrets)
+
 ### 📝 Prompts (`/prompts/`)
 - Prompts et templates pour l'IA
 - Guidelines d'interaction
@@ -49,11 +54,13 @@ Tous les échanges inter‑agents (orchestrateur, implémenteur, auditeur, etc.)
 - `PRD.md` - Product Requirements Document
 - `FRONTEND_PRD.md` - Spécifications frontend
 - `ORCHESTRATOR_IMPLEMENTATION_PLAN.md` - Plan d'implémentation
+ - `plans/FRONTEND_DEVELOPMENT_PLAN.md` - Plan détaillé de développement FE
 
 ### Qualité et Tests
 - `TEST_REPORT_V1.md` - Rapports de tests
 - `CHECKLIST_TESTS_V1.md` - Checklists de validation (section 0: communication Redis obligatoire)
 - `PARITY_REVIEW_CHECKLIST.md` - Vérification parité
+ - `.github/pull_request_template.md` - Gabarit de PR (référence continue, Redis claims/audits, gate auditeur)
 
 ## Liens avec Autres Dossiers
 

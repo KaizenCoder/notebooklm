@@ -4,20 +4,7 @@ Scope & Parity Note
 - This document enforces strict parity with the original InsightsLM Local frontend. No new features or UX changes.
 - The only backend change is replacing n8n with a local API exposing the same webhooks used by existing Supabase Edge Functions.
 - Database requirement: all data persists to a local PostgreSQL instance (with pgvector). If Supabase is used, it must run locally and back onto this local PostgreSQL. No cloud DB.
-  - Governance: Implementer/Auditor pairing; SPEC→IMPL→TEST→AUDIT workflow via Task Master; weekly parity reviews against the original UI/flows; auditor approval gates required to move between phases; Redis publication required for claims/audits.
-
-Local Alignment (Addendum)
-- Orchestrator base: http://127.0.0.1:8000 (local-only)
-- Webhooks mapping (local):
-  - /webhook/chat
-  - /webhook/process-document
-  - /webhook/process-additional-sources
-  - /webhook/generate-notebook-content
-  - /webhook/generate-audio
-- Authorization header: NOTEBOOK_GENERATION_AUTH = "Bearer test" (Edge-only; never exposed in FE)
-- Supabase local endpoints: SUPABASE_URL = http://127.0.0.1:54321; Postgres = 127.0.0.1:54322
-- Models (local Ollama): LLM qwen2.5; embeddings nomic-embed-text (dims identical to original)
-- No cloud endpoints; strict local parity
+ - Governance: Implementer/Auditor pairing; SPEC→IMPL→TEST→AUDIT workflow via Task Master; weekly parity reviews against the original UI/flows.
 
 Source of Truth
 - Always cross‑reference the cloned model repos under `docs/clone/` when implementing or reviewing changes:
@@ -26,18 +13,6 @@ Source of Truth
 - Do not introduce deviations; any necessary “validated adaptation” must be documented with a link to the original file and rationale.
 - Infrastructure constraint: local PostgreSQL only (pgvector). Supabase usage, if any, is local-only.
  - Governance constraint: no implementation work without a Task Master task ID; FE tasks must include parity validation steps and mock contracts when BE is not ready.
-
-Continuous Reference Requirements (Mandatory)
-- Every FE change MUST cite the specific cloned file(s) from `docs/clone/...` it mirrors (path + brief context).
-- PR descriptions MUST include a section "Source originale" with links to the corresponding files/lines in the cloned model.
-- Any "validated adaptation" MUST include: rationale, impact analysis, and a link to the decision in `docs/DECISIONS.md`.
-- Tests, audits and claims MUST include `#TEST:` pointing to concrete evidence (logs, screenshots, diffs) and reference the cloned counterpart where applicable.
-
-Vision‑Validated Specificities (Non‑negotiable)
-- Strict parity (no UX change), local‑only posture (DB/edges), and webhooks through the Orchestrator replacing n8n.
-- Secrets never in FE; only via Supabase Edge Functions; `NOTEBOOK_GENERATION_AUTH = "Bearer test"` in local mode.
-- GPU‑only possible; readiness gates enforced; no CPU fallback when enabled.
-- Redis Streams mandatory for inter‑agents communications, including STATUS_UPDATE before claims and AUDIT_REQUEST/VERDICT around audits.
 
 ## 1. Introduction
 
@@ -113,16 +88,6 @@ The frontend's interaction with the backend is designed with a clear separation 
 *   **Direct Supabase Interaction (local-only):** The frontend directly communicates with Supabase (running locally) for core functionalities such as user authentication, Row Level Security (RLS), and real-time data updates related to notebooks, sources, and user notes. This leverages the `@supabase/supabase-js` client library bound to a local PostgreSQL database.
 *   **Mocks for Parallelism:** Until orchestrator webhooks are available, FE uses mocked responses consistent with documented API contracts to maintain progress without breaking parity.
 *   **Indirect Interaction via Supabase Edge Functions:** For more complex, AI-related operations (e.g., document processing, chat, audio generation), the frontend does *not* directly call the API Orchestrator. Instead, it invokes specific Supabase Edge Functions (e.g., `supabase.functions.invoke('process-document')`, `supabase.functions.invoke('process-additional-sources')`, `supabase.functions.invoke('send-chat-message')`). These Edge Functions then call the orchestrator webhooks (`/webhook/process-document`, `/webhook/process-additional-sources`, `/webhook/chat`). This ensures secrets (like `NOTEBOOK_GENERATION_AUTH`) remain server-side only.
-
-Edge Functions → Orchestrator (Local Mapping)
-- send-chat-message → POST http://127.0.0.1:8000/webhook/chat
-- process-document → POST http://127.0.0.1:8000/webhook/process-document
-- process-additional-sources → POST http://127.0.0.1:8000/webhook/process-additional-sources
-- generate-notebook-content → POST http://127.0.0.1:8000/webhook/generate-notebook-content
-- generate-audio-overview → POST http://127.0.0.1:8000/webhook/generate-audio
-- Callbacks (orchestrator → Supabase):
-  - process-document-callback → <SUPABASE_URL>/functions/v1/process-document-callback
-  - audio-generation-callback → <SUPABASE_URL>/functions/v1/audio-generation-callback
 
 Security requirements:
 - The frontend must never embed or transmit `NOTEBOOK_GENERATION_AUTH` or any service role keys. Edge Functions are responsible for setting the appropriate Authorization header when calling the backend.
@@ -255,3 +220,4 @@ The success of the frontend development will be measured by:
   - Ne pas mettre le statut dans le nom de fichier; l’indiquer dans le front‑matter
 
 #TEST: docs/spec/README.md
+

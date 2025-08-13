@@ -36,7 +36,8 @@ Use this before integrating the frontend.
 
 **Redis Communications (if REDIS_URL set)**
 - AGENT_ONLINE sent on boot; ORCHESTRATOR_ALIVE every ~600s ±30s; AGENT_OFFLINE on shutdown.
-- STATUS_UPDATE before any claim; AUDIT_REQUEST/VERDICT used for audits.
+- Obligation processuelle: `STATUS_UPDATE` publié avant toute Claim; `AUDIT_REQUEST`/`AUDIT_VERDICT` autour des audits.
+- Les IDs/messages Redis liés sont référencés dans les PR associées.
 
 **Smoke Webhooks**
 - `/webhook/chat`: returns 200; persists messages.
